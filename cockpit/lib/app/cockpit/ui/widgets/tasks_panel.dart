@@ -24,6 +24,7 @@ class TasksPanel extends StatefulWidget {
   const TasksPanel({
     super.key,
     required this.cwd,
+    this.workspaceId,
     this.sourceWorkspaceCwd,
     required this.listHeight,
     required this.onResizeDelta,
@@ -33,6 +34,7 @@ class TasksPanel extends StatefulWidget {
 
   /// Pasta do projeto selecionado. Trocar dispara nova descoberta.
   final String cwd;
+  final String? workspaceId;
   final String? sourceWorkspaceCwd;
 
   /// Altura da área de lista (redimensionável, espelha o painel de SEARCH).
@@ -53,6 +55,7 @@ class _TasksPanelState extends State<TasksPanel> {
       if (mounted) {
         context.read<TasksViewModel>().loadFor(
           widget.cwd,
+          workspaceId: widget.workspaceId,
           sourceWorkspaceCwd: widget.sourceWorkspaceCwd,
         );
         context.read<TasksViewModel>().setActiveFile(widget.activeFile);
@@ -63,10 +66,12 @@ class _TasksPanelState extends State<TasksPanel> {
   @override
   void didUpdateWidget(covariant TasksPanel old) {
     super.didUpdateWidget(old);
-    if (old.cwd != widget.cwd ||
+    if (old.workspaceId != widget.workspaceId ||
+        old.cwd != widget.cwd ||
         old.sourceWorkspaceCwd != widget.sourceWorkspaceCwd) {
       context.read<TasksViewModel>().loadFor(
         widget.cwd,
+        workspaceId: widget.workspaceId,
         sourceWorkspaceCwd: widget.sourceWorkspaceCwd,
       );
     }

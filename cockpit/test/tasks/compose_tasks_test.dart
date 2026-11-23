@@ -6,6 +6,7 @@ import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:cockpit/app/core/data/jsonc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cockpit/app/cockpit/data/tasks/project_paths.dart';
+import 'package:path/path.dart' as p;
 
 String native(String path) => path.replaceAll('/', Platform.pathSeparator);
 
@@ -60,7 +61,7 @@ void main() {
         child.path,
         tmp.path,
       );
-      expect(parsed?.path, parent.absolute.path);
+      expect(parsed?.path, p.normalize(parent.absolute.path));
       expect(parsed?.services, ['api']);
     });
   });

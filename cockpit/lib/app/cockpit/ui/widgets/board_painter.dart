@@ -67,7 +67,8 @@ class BoardPainter extends CustomPainter {
             ? accent
             : ink
         ..style = PaintingStyle.stroke
-        ..strokeWidth = selected.contains(i.id) ? 2.5 : 1.5;
+        ..strokeWidth =
+            (i.strokeWidth ?? 1.5) + (selected.contains(i.id) ? 1 : 0);
       var rect = Rect.fromLTWH(i.x, i.y, i.width, i.height);
       if (i.kind == BoardKind.arrow) {
         final pts = route(i);
@@ -83,7 +84,11 @@ class BoardPainter extends CustomPainter {
         );
       } else if (i.kind == BoardKind.stroke) {
         if (i.width <= 1 && i.height <= 1) {
-          c.drawCircle(Offset(i.x, i.y), 1, Paint()..color = paint.color);
+          c.drawCircle(
+            Offset(i.x, i.y),
+            (i.strokeWidth ?? 2) / 2,
+            Paint()..color = paint.color,
+          );
         } else {
           line([for (final p in i.points) Offset(i.x + p.x, i.y + p.y)], paint);
         }

@@ -4,5 +4,8 @@ import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 /// onde o `.cockpit/tasks.json` (manual) é mesclado sobre as detectadas.
 abstract class TaskDiscovery {
   /// Tasks do projeto em [cwd]: detectadas pelos adapters + manuais do JSON.
-  Future<List<TaskDefinition>> discover(String cwd);
+  /// Returned IDs must include [workspaceId], the discovery root and the
+  /// remote host, using [TaskDefinition.scopedTo], before entering shared state.
+  /// Omit [workspaceId] only for standalone discovery outside a workspace.
+  Future<List<TaskDefinition>> discover(String cwd, {String? workspaceId});
 }

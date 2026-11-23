@@ -788,6 +788,15 @@ class _Translations$cockpit$fileTreePanel$zh extends Translations$cockpit$fileTr
 	@override String get importAction => '复制';
 	@override String get couldNotImportTitle => '无法复制';
 	@override String openInAgent({required Object harness}) => '在 ${harness} 中打开';
+	@override String get solutionTooltip => '解决方案';
+	@override String get explorerTooltip => '资源管理器';
+	@override String get switchSolution => '切换解决方案';
+	@override String get loadingSolution => '正在加载解决方案…';
+	@override String get solutionLoadFailed => '无法读取解决方案。';
+	@override String projectCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n,
+		one: '1 个项目',
+		other: '${n} 个项目',
+	);
 }
 
 // Path: cockpit.fileViewer
@@ -805,6 +814,7 @@ class _Translations$cockpit$fileViewer$zh extends Translations$cockpit$fileViewe
 	@override String get preview => '预览';
 	@override String get source => '源代码';
 	@override String get reload => '重新加载';
+	@override String get mermaidError => '图表错误';
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -1713,6 +1723,12 @@ class _Translations$cockpit$gallery$board$zh extends Translations$cockpit$galler
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override String get editObjectText => '编辑文本';
+	@override String get strokeWidth => '线宽';
+	@override String get selectedLineWidth => '所选线条的宽度';
+	@override String get bringFront => '置于顶层';
+	@override String get sendBack => '置于底层';
+	@override String get menuChanged => '所选对象已更改，请重新打开菜单。';
 	@override String get fileActions => '导入或导出';
 	@override String get exportDocument => '导出整个文档';
 	@override String get exportSelection => '导出所选内容';
@@ -2592,6 +2608,12 @@ extension on TranslationsZh {
 			'cockpit.fileTreePanel.importAction' => '复制',
 			'cockpit.fileTreePanel.couldNotImportTitle' => '无法复制',
 			'cockpit.fileTreePanel.openInAgent' => ({required Object harness}) => '在 ${harness} 中打开',
+			'cockpit.fileTreePanel.solutionTooltip' => '解决方案',
+			'cockpit.fileTreePanel.explorerTooltip' => '资源管理器',
+			'cockpit.fileTreePanel.switchSolution' => '切换解决方案',
+			'cockpit.fileTreePanel.loadingSolution' => '正在加载解决方案…',
+			'cockpit.fileTreePanel.solutionLoadFailed' => '无法读取解决方案。',
+			'cockpit.fileTreePanel.projectCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个项目', other: '${n} 个项目', ), 
 			'cockpit.fileViewer.saveAs' => '另存为',
 			'cockpit.fileViewer.couldNotSave' => '无法保存',
 			'cockpit.fileViewer.untitledDefaultName' => 'untitled.txt',
@@ -2600,6 +2622,7 @@ extension on TranslationsZh {
 			'cockpit.fileViewer.preview' => '预览',
 			'cockpit.fileViewer.source' => '源代码',
 			'cockpit.fileViewer.reload' => '重新加载',
+			'cockpit.fileViewer.mermaidError' => '图表错误',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => '选择工作区照片',
 			'cockpit.workspaceSettingsDialog.title' => '工作区设置',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => '工作区名称',
@@ -2746,6 +2769,8 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.closeDetail' => '关闭',
 			'cockpit.kanbanView.notABoard' => '此文件还没有 ## 列——将以 Markdown 打开。',
 			'cockpit.kanbanView.startBoard' => '创建看板',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.couldNotSave' => '无法保存看板',
 			'cockpit.kanbanView.unrecognizedBlock' => '解析器无法识别——只能整体拖动，不支持内联编辑。',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => '删除「${name}」？',
@@ -2753,8 +2778,6 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => '移到上一列',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => '随列一起删除',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => '此列为空。',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.sectionDatabase' => '数据库',
 			'cockpit.dbPanel.edit' => '编辑…',
 			'cockpit.dbPanel.copyName' => '复制名称',
@@ -2934,6 +2957,12 @@ extension on TranslationsZh {
 			'cockpit.browserPane.go' => '前往',
 			'cockpit.documentWindow.mediaNotSupported' => '音频和视频将在 Cockpit 主窗口中打开。',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => '未找到文件：${path}',
+			'cockpit.gallery.board.editObjectText' => '编辑文本',
+			'cockpit.gallery.board.strokeWidth' => '线宽',
+			'cockpit.gallery.board.selectedLineWidth' => '所选线条的宽度',
+			'cockpit.gallery.board.bringFront' => '置于顶层',
+			'cockpit.gallery.board.sendBack' => '置于底层',
+			'cockpit.gallery.board.menuChanged' => '所选对象已更改，请重新打开菜单。',
 			'cockpit.gallery.board.fileActions' => '导入或导出',
 			'cockpit.gallery.board.exportDocument' => '导出整个文档',
 			'cockpit.gallery.board.exportSelection' => '导出所选内容',
@@ -3254,6 +3283,8 @@ extension on TranslationsZh {
 			'settings.page.appearance.themeDesc' => '应用颜色、代码高亮和终端配色。',
 			'settings.page.appearance.modeTitle' => '模式',
 			'settings.page.appearance.modeDesc' => '使用主题的哪个变体。',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '「${theme}」只有深色变体，此项不生效。',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '「${theme}」只有浅色变体，此项不生效。',
 			'settings.page.appearance.themeFileTitle' => '主题文件',
@@ -3267,8 +3298,6 @@ extension on TranslationsZh {
 			'settings.page.appearance.interfaceFontTitle' => '界面字体',
 			'settings.page.appearance.interfaceFontDesc' => '整个应用通用。留空 = 系统默认。',
 			'settings.page.appearance.interfaceSizeTitle' => '界面字号',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.codeFontTitle' => '代码字体',
 			'settings.page.appearance.codeFontDesc' => '用于代码和差异。留空 = 系统默认。',
 			'settings.page.appearance.codeSizeTitle' => '代码字号',

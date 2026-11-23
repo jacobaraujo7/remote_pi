@@ -10,7 +10,7 @@ import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/tasks_viewmodel.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:cockpit/app/cockpit/data/tasks/project_paths.dart';
+import 'package:path/path.dart' as p;
 
 class IdleTaskRunner implements TaskRunnerGateway {
   @override
@@ -92,7 +92,7 @@ void main() {
           await config(source).readAsBytes(),
         );
         expect(vm.tasks.single.label, 'API');
-        expect(vm.tasks.single.cwd, joinPath(worktree.path, 'backend'));
+        expect(vm.tasks.single.cwd, p.join(worktree.path, 'backend'));
         expect(vm.hasConfig, isTrue);
         expect(vm.canImport, isFalse);
         expect(vm.importing, isFalse);

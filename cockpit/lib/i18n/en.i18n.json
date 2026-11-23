@@ -392,7 +392,16 @@
       "importMessage": "Copy ${count} items into “${dest}”?",
       "importAction": "Copy",
       "couldNotImportTitle": "Could not copy",
-      "openInAgent": "Open in ${harness}"
+      "openInAgent": "Open in ${harness}",
+      "solutionTooltip": "Solution",
+      "explorerTooltip": "Explorer",
+      "switchSolution": "Switch solution",
+      "loadingSolution": "Loading solution…",
+      "solutionLoadFailed": "Couldn't read the solution.",
+      "projectCount": {
+        "one": "1 project",
+        "other": "${n} projects"
+      }
     },
     "fileViewer": {
       "saveAs": "Save as",
@@ -402,7 +411,8 @@
       "couldNotLoadImage": "Could not load the image.",
       "preview": "Preview",
       "source": "Source",
-      "reload": "Reload"
+      "reload": "Reload",
+      "mermaidError": "Diagram error"
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "Choose workspace photo",
@@ -815,6 +825,12 @@
     },
     "gallery": {
       "board": {
+        "editObjectText": "Edit text",
+        "strokeWidth": "Line width",
+        "selectedLineWidth": "Width of selected lines",
+        "bringFront": "Bring to front",
+        "sendBack": "Send to back",
+        "menuChanged": "The selection changed. Open the menu again.",
         "fileActions": "Import or export",
         "exportDocument": "Export entire document",
         "exportSelection": "Export selection",

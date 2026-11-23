@@ -392,7 +392,16 @@
       "importMessage": "Copiar ${count} itens para “${dest}”?",
       "importAction": "Copiar",
       "couldNotImportTitle": "Não foi possível copiar",
-      "openInAgent": "Abrir no ${harness}"
+      "openInAgent": "Abrir no ${harness}",
+      "solutionTooltip": "Solução",
+      "explorerTooltip": "Explorer",
+      "switchSolution": "Trocar solução",
+      "loadingSolution": "Carregando solução…",
+      "solutionLoadFailed": "Não foi possível ler a solução.",
+      "projectCount": {
+        "one": "1 projeto",
+        "other": "${n} projetos"
+      }
     },
     "fileViewer": {
       "saveAs": "Salvar como",
@@ -402,7 +411,8 @@
       "couldNotLoadImage": "Não foi possível carregar a imagem.",
       "preview": "Pré-visualização",
       "source": "Código-fonte",
-      "reload": "Recarregar"
+      "reload": "Recarregar",
+      "mermaidError": "Erro no diagrama"
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "Escolher foto do workspace",
@@ -815,6 +825,12 @@
     },
     "gallery": {
       "board": {
+        "editObjectText": "Editar texto",
+        "strokeWidth": "Espessura da linha",
+        "selectedLineWidth": "Espessura das linhas selecionadas",
+        "bringFront": "Trazer para a frente",
+        "sendBack": "Enviar para trás",
+        "menuChanged": "A seleção mudou. Abra o menu novamente.",
         "fileActions": "Importar ou exportar",
         "exportDocument": "Exportar documento inteiro",
         "exportSelection": "Exportar seleção",

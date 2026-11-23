@@ -150,7 +150,9 @@ class TaskDeviceCoordinatorImpl implements TaskDeviceCoordinator {
       if (!_inflight.containsKey(key) && !_failures.contains(key)) {
         unawaited(refresh(def, profileName: profileName));
       }
-      final manual = _store.read(def.cwd, def.id)?.deviceId;
+      final manual =
+          (_store.read(def.cwd, def.id) ?? _store.read(def.cwd, def.localId))
+              ?.deviceId;
       if (manual == null) return TaskLaunchPlan.plain;
       final tool = _tools.deviceTool(parsed.toolId);
       if (tool == null) return TaskLaunchPlan.plain;
@@ -209,7 +211,8 @@ class TaskDeviceCoordinatorImpl implements TaskDeviceCoordinator {
     required List<DevDevice> devices,
     required bool ready,
   }) {
-    final manual = _store.read(def.cwd, def.id);
+    final manual =
+        (_store.read(def.cwd, def.id) ?? _store.read(def.cwd, def.localId));
     if (manual != null) return manual.deviceId;
     final explicit = parsed.explicitDeviceId;
     if (explicit != null && explicit.isNotEmpty) return explicit;
