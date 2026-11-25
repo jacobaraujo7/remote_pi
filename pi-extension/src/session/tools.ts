@@ -31,6 +31,38 @@ interface SendDetails {
 }
 
 /**
+ * Names of the agent-network tools. An optional prefix (env
+ * `REMOTE_PI_TOOL_PREFIX`, letters/digits/underscore only) lets users load
+ * remote-pi next to another extension that already registers one of these
+ * names (e.g. pi-herdsman's `list_peers`). Empty / unset keeps the defaults.
+ */
+export interface AgentToolNames {
+  send: string;
+  request: string;
+  listPeers: string;
+}
+
+const TOOL_PREFIX_RE = /^[A-Za-z0-9_]*$/;
+
+export function resolveAgentToolNames(
+  env: NodeJS.ProcessEnv = process.env,
+): AgentToolNames {
+  const raw = env["REMOTE_PI_TOOL_PREFIX"]?.trim() ?? "";
+  let prefix = raw;
+  if (!TOOL_PREFIX_RE.test(raw)) {
+    console.warn(
+      `[remote-pi] Ignoring REMOTE_PI_TOOL_PREFIX="${raw}": only letters, digits and "_" are allowed.`,
+    );
+    prefix = "";
+  }
+  return {
+    send: `${prefix}agent_send`,
+    request: `${prefix}agent_request`,
+    listPeers: `${prefix}list_peers`,
+  };
+}
+
+/**
  * Registers the native tools the Pi LLM uses to talk to other agents in the
  * same UDS session (plano 19 transport + plan/25 Wave 0 ACK protocol):
  *
@@ -54,7 +86,9 @@ interface SendDetails {
 export function registerAgentTools(
   pi: ExtensionAPI,
   getSessionPeer: () => SessionPeer | null,
+  names: AgentToolNames = resolveAgentToolNames(),
 ): void {
+  const { send: SEND, request: REQUEST, listPeers: LIST_PEERS } = names;
   const SendParams = Type.Object({
     to: Type.String({
       description:
@@ -78,7 +112,7 @@ export function registerAgentTools(
   });
 
   pi.registerTool<typeof SendParams, SendDetails>({
-    name: "agent_send",
+    name: SEND,
     label: "Agent Send",
     description:
       "Send a message to another Pi agent in the current local session and " +
@@ -90,7 +124,7 @@ export function registerAgentTools(
       "`sent` (broadcast/multicast — no ACK semantics). Use `re` to mark this " +
       "message as a reply to an incoming envelope's `id` (correlation only).",
     promptSnippet:
-      "agent_send({to, body, re?}): unicast → returns {status: received|denied|timeout} (delivery is reliable; no retry-on-busy). Broadcast/multicast → fire-and-forget ({status:'sent'}).",
+      `${SEND}({to, body, re?}): unicast → returns {status: received|denied|timeout} (delivery is reliable; no retry-on-busy). Broadcast/multicast → fire-and-forget ({status:'sent'}).`,
     parameters: SendParams,
     execute: async (_toolCallId, params) => {
       const peer = getSessionPeer();
@@ -103,7 +137,7 @@ export function registerAgentTools(
       }
       const { to, body, re } = params as SendInput;
       if (to === peer.address() || to === peer.name()) {
-        const msg = `Refused: cannot agent_send to yourself ("${to}"). Just do the work directly.`;
+        const msg = `Refused: cannot ${SEND} to yourself ("${to}"). Just do the work directly.`;
         const details: SendDetails = { status: "refused", ok: false, error: msg };
         return {
           content: [{ type: "text", text: msg }],
@@ -159,18 +193,18 @@ export function registerAgentTools(
   const ListPeersParams = Type.Object({});
 
   pi.registerTool<typeof ListPeersParams, { peers: string[] }>({
-    name: "list_peers",
+    name: LIST_PEERS,
     label: "List Peers",
     description:
       "Returns the current peer inventory in this session as ADDRESSES of the " +
       "form `<cwd>@<name>` (cross-PC peers prefixed `<pc>:`). An address is an " +
-      "opaque routing key — pass it to `agent_send`/`agent_request` VERBATIM, " +
+      `opaque routing key — pass it to \`${SEND}\`/\`${REQUEST}\` VERBATIM, ` +
       "never build one by hand. Use BEFORE sending whenever you're unsure who's " +
       "available, or after a `peer_joined` / `peer_left` notification to refresh " +
       "your mental model. Resolves in milliseconds — a metadata query to the " +
       "broker, not a turn of another agent.",
     promptSnippet:
-      "list_peers(): returns {peers: string[]} of addresses `<cwd>@<name>` (`<pc>:` prefix cross-PC). Echo an address verbatim to agent_send; never compose one. Cheap; call freely.",
+      `${LIST_PEERS}(): returns {peers: string[]} of addresses \`<cwd>@<name>\` (\`<pc>:\` prefix cross-PC). Echo an address verbatim to ${SEND}; never compose one. Cheap; call freely.`,
     parameters: ListPeersParams,
     execute: async (_toolCallId) => {
       const peer = getSessionPeer();
@@ -206,7 +240,7 @@ export function registerAgentTools(
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
-          content: [{ type: "text", text: `list_peers failed: ${msg}` }],
+          content: [{ type: "text", text: `${LIST_PEERS} failed: ${msg}` }],
           details: { peers: [] },
         };
       }
@@ -214,16 +248,16 @@ export function registerAgentTools(
   });
 
   pi.registerTool<typeof RequestParams, unknown>({
-    name: "agent_request",
+    name: REQUEST,
     label: "Agent Request (deprecated)",
     description:
-      "DEPRECATED — prefer `agent_send` + observing your inbox for the " +
+      `DEPRECATED — prefer \`${SEND}\` + observing your inbox for the ` +
       "reply (correlated by `re=<your-send-id>`). This tool still works: " +
       "it sends a message and synchronously blocks until the peer replies " +
       "or the timeout fires. Default 30s. Will be removed in a future " +
       "release; migrate to the event-driven pattern in the agent-network skill.",
     promptSnippet:
-      "agent_request({to, body, timeout_ms?}): DEPRECATED synchronous request/reply (blocks current turn). Prefer agent_send + inbox observation.",
+      `${REQUEST}({to, body, timeout_ms?}): DEPRECATED synchronous request/reply (blocks current turn). Prefer ${SEND} + inbox observation.`,
     parameters: RequestParams,
     execute: async (_toolCallId, params) => {
       const peer = getSessionPeer();
@@ -235,7 +269,7 @@ export function registerAgentTools(
       }
       const { to, body, timeout_ms } = params as RequestInput;
       if (to === peer.address() || to === peer.name()) {
-        const msg = `Refused: cannot agent_request to yourself ("${to}"). Just do the work directly.`;
+        const msg = `Refused: cannot ${REQUEST} to yourself ("${to}"). Just do the work directly.`;
         return {
           content: [{ type: "text", text: msg }],
           details: { error: msg },

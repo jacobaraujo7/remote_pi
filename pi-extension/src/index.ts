@@ -75,7 +75,7 @@ import {
   type ExtensionUiBridge,
 } from "./extension_ui_bridge.js";
 import { roomIdFor } from "./rooms.js";
-import { registerAgentTools } from "./session/tools.js";
+import { registerAgentTools, resolveAgentToolNames } from "./session/tools.js";
 import { formatPeerInventory } from "./session/peer_inventory.js";
 import { MeshNode } from "./session/mesh_node.js";
 import {
@@ -4108,7 +4108,7 @@ function _meshMessageForAgent(env: MeshEnvelope) {
   const header = `[agent-network] message from "${env.from}" (id=${env.id}${env.re ? `, re=${env.re}` : ""}):`;
   const footer = env.re
     ? "(This is a reply to a previous message of yours.)"
-    : `(If a reply is expected, call agent_send with to="${env.from}" and re="${env.id}".)`;
+    : `(If a reply is expected, call ${resolveAgentToolNames().send} with to="${env.from}" and re="${env.id}".)`;
   return {
     customType: "remote-pi:mesh-message",
     content: `${header}\n${bodyText}\n\n${footer}`,

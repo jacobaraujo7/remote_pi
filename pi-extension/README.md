@@ -625,6 +625,20 @@ turn while waiting for another agent's content reply. Migrate to `agent_send`;
 a unicast waits only for the delivery ACK, and the receiver can reply later
 with `agent_send` including `re: "<original-id>"` for correlation.
 
+**`Tool "list_peers" conflicts with ...` at startup.** Another extension
+(for example `pi-herdsman`) already registers a tool with the same name, and
+Pi refuses to load both. Set `REMOTE_PI_TOOL_PREFIX` to prefix remote-pi's
+three agent-network tools:
+
+```bash
+REMOTE_PI_TOOL_PREFIX=rpi_ pi   # rpi_agent_send, rpi_agent_request, rpi_list_peers
+```
+
+Only letters, digits and `_` are accepted; unset keeps the default names. The
+tool descriptions and incoming-message hints use the prefixed names, but the
+bundled `agent-network` skill still refers to the defaults. The broker
+protocol is unchanged, so prefixed and unprefixed agents can share a session.
+
 **Multiple terminals in the same directory.** Supported. They share the same
 agent-network session (UDS broker) and the relay handles each Pi process
 independently. If the relay refuses with `RoomAlreadyOpenError`, stop the
