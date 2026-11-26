@@ -192,7 +192,7 @@ void main() {
     'origin routes to its owning client even when the target belongs to another client',
     () async {
       final server = _server();
-      await server.bind(path);
+      await server.bind(path, transport: _tcp);
       addTearDown(server.close);
       final origin = await _connectClient(path);
       final destination = await _connectClient(path);
@@ -233,7 +233,7 @@ void main() {
     'stale or malformed origin never falls back to a single connected client',
     () async {
       final server = _server();
-      await server.bind(path);
+      await server.bind(path, transport: _tcp);
       addTearDown(server.close);
       final client = await _connectClient(path);
       await _claimTab(client, 'target');

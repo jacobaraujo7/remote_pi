@@ -55,12 +55,21 @@ class RemoteConnection {
   /// [local] marca "servidor na mesma máquina" (sidecar). Não é derivável do
   /// transporte: a ponta de um `ssh -L` também é um socket local, e ali o
   /// servidor É remoto. Ver [Hello.local].
+  ///
+  /// [transport] escolhe o transporte do anúncio; sem valor usa o default da
+  /// plataforma (UDS no POSIX, TCP no Windows). Testes e ferramentas que
+  /// precisam exercitar o caminho TCP no POSIX passam
+  /// [LocalEndpointTransport.tcp] explicitamente.
   static Future<RemoteConnection> connect(
     String socketPath, {
     String clientName = 'cockpit',
     bool local = false,
+    LocalEndpointTransport? transport,
   }) async {
-    final endpoint = await LocalEndpoint.connect(socketPath);
+    final endpoint = await LocalEndpoint.connect(
+      socketPath,
+      transport: transport,
+    );
     return connectOn(
       SocketRemoteDuplex(endpoint.socket),
       clientName: clientName,
