@@ -43,6 +43,7 @@ import 'package:url_launcher/url_launcher.dart' as url_launcher;
 import 'package:window_manager/window_manager.dart';
 
 import 'package:cockpit/app/cockpit/domain/contracts/app_launcher.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/workspace_window_service.dart';
 import 'package:cockpit/app/cockpit/domain/services/terminal_path_resolver.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_query_service.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/content_searcher.dart';
@@ -214,6 +215,7 @@ class CockpitViewModel extends ChangeNotifier
     this._telemetryStores,
     this._telemetryIngest,
     this._taskDevices,
+    this._windows,
   ) {
     _fileEditorFacade = FileEditorFacade(
       FileEditorRegistry({
@@ -370,6 +372,14 @@ class CockpitViewModel extends ChangeNotifier
   TaskTerminalStore get taskTerminals => _taskTerminals;
 
   final TerminalScrollbackStore _scrollback;
+
+  /// Detached workspace windows (another process, isolated profile).
+  final WorkspaceWindowService _windows;
+  StreamSubscription<String>? _windowClosedSub;
+
+  /// Workspaces (roots) on their way to another window: the runtime here is
+  /// already shutting down, but the new process is not up yet.
+  final Set<String> _windowsOpening = {};
   final GitCommandRunner _gitRunner;
   final GitDiffReader _gitDiff;
   final GitHistoryReader _gitHistory;
@@ -1630,6 +1640,162 @@ class CockpitViewModel extends ChangeNotifier
   /// encontrado" (ou, pior, um arquivo local homônimo). Fica de fora até a
   /// janela saber ler do host.
   bool canOpenInWindow(String projectId) => !_isRemote(projectId);
+
+  // ---- workspace windows ----------------------------------------------------
+
+  /// `true` when THIS process is a detached workspace window.
+  bool get isWorkspaceWindow => _windows.hostedWorkspaceId != null;
+
+  /// Workspace hosted by this window (detached window only).
+  Project? get hostedWorkspace => _projectById(_windows.hostedWorkspaceId);
+
+  /// Whether workspace [projectId] (or its root, for a worktree) is currently
+  /// open in another window.
+  bool isInOtherWindow(String projectId) {
+    final root = _rootOf(projectId);
+    return _windowsOpening.contains(root) ||
+        _windows.openWorkspaceIds.contains(root);
+  }
+
+  /// "Open in new window" in the workspace menu: local root workspaces only
+  /// (remote ones and the system Cockpit workspace have no folder of their own
+  /// for the other window to open), and only from the main window.
+  bool canOpenWorkspaceWindow(String projectId) {
+    final project = _projectById(projectId);
+    return _windows.isSupported &&
+        !isWorkspaceWindow &&
+        project != null &&
+        project.parentId == null &&
+        !project.isPathless &&
+        !isInOtherWindow(projectId);
+  }
+
+  /// Live terminals of the workspace and its worktrees. The page asks for
+  /// confirmation before detaching when there is any: they are closed here and
+  /// reopened in the new window (history moves, the process does not).
+  int liveTerminalCount(String rootId) {
+    var count = 0;
+    for (final id in _workspaceAndForkIds(rootId)) {
+      final tree = _trees[id];
+      if (tree == null) continue;
+      for (final leaf in leaves(tree)) {
+        for (final sid in leaf.tabs) {
+          if (_sessions[sid] is TerminalSession) count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  List<String> _workspaceAndForkIds(String rootId) => [
+    rootId,
+    for (final fork in _worktrees[rootId] ?? const <Project>[]) fork.id,
+  ];
+
+  /// Moves workspace [projectId] to a new window.
+  ///
+  /// Same order as [removeProject] (leave → unmount → destroy), with two
+  /// differences: the workspace **stays** in the list (marked as open in
+  /// another window) and the terminals' scrollback is kept and saved first, so
+  /// the new window restores the history. The layout is persisted right away
+  /// (no debounce) because the new window starts from what is on disk.
+  Future<Result<void, WorkspaceWindowError>> openWorkspaceInNewWindow(
+    String projectId,
+  ) async {
+    final rootId = _rootOf(projectId);
+    if (!canOpenWorkspaceWindow(rootId)) {
+      return const Failure(
+        WorkspaceWindowError(WorkspaceWindowErrorKind.unsupported),
+      );
+    }
+    final ids = _workspaceAndForkIds(rootId);
+
+    // (1) Persistence first: layout and scrollback of the current state.
+    for (final id in ids) {
+      _saveTimers.remove(id)?.cancel();
+      if (!_trees.containsKey(id)) continue;
+      final doc = _serializeLayout(id);
+      if (doc.isNotEmpty) await _layoutStore.save(id, doc);
+      for (final leaf in leaves(_trees[id]!)) {
+        for (final sid in leaf.tabs) {
+          final session = _sessions[sid];
+          if (session is TerminalSession) {
+            await _scrollback.save(
+              projectId: session.projectId,
+              sessionId: session.id,
+              contents: session.scrollbackSnapshot,
+            );
+          }
+        }
+      }
+    }
+
+    // (2) Leave the workspace and wait for the frame that unmounts its views.
+    _windowsOpening.add(rootId);
+    final selected = _selectedProjectId;
+    if (selected != null && ids.contains(selected)) {
+      final next = _selectionAfterClosing(rootId);
+      _selectedProjectId = next;
+      _clearFocusedNotification();
+      _requestPaneKeyboard();
+      git.watchProject(next);
+      if (next != null) {
+        unawaited(_activateProject(next));
+        unawaited(_projects.saveLastSelected(realmCtrl.activeId, next));
+      }
+    }
+    notifyListeners();
+    await _endOfFrame();
+
+    // (3) Shut down the processes here; the next activation rereads the
+    // layout from the store (key missing from `_savedLayouts`).
+    for (final id in ids) {
+      _disposeProjectRuntime(id, keepScrollback: true);
+    }
+
+    // (4) Launch the new window, cascading from this one.
+    WindowBounds? near;
+    if (!isMobilePlatform) {
+      try {
+        final b = await windowManager.getBounds();
+        near = (x: b.left, y: b.top, width: b.width, height: b.height);
+      } on Object {
+        near = null; // no bounds: the new window centers itself
+      }
+    }
+    final result = await _windows.open(rootId, near: near);
+    _windowsOpening.remove(rootId);
+    notifyListeners();
+    return result;
+  }
+
+  /// The window hosting [rootId] closed and its layout is already back in the
+  /// store: drop what is in memory so the next activation rereads it.
+  void _onWorkspaceWindowClosed(String rootId) {
+    _savedLayouts.removeWhere(
+      (id, _) => id == rootId || id.startsWith('$rootId::'),
+    );
+    // Closed here ("Close") while the other window hosted it: the layout that
+    // just came back has no owner anymore.
+    if (_projectById(rootId) == null) {
+      unawaited(_layoutStore.remove(rootId));
+      notifyListeners();
+      return;
+    }
+    // Nothing selected (it was the only workspace): show it here again.
+    if (_selectedProjectId == null && _projectById(rootId) != null) {
+      selectProject(rootId);
+      return;
+    }
+    notifyListeners();
+  }
+
+  /// Brings this window to the front (`focus-window` command).
+  void bringWindowToFront() {
+    if (isMobilePlatform) return;
+    unawaited(windowManager.show());
+    unawaited(windowManager.focus());
+  }
 
   /// Estado git de uma **root** específica ([rootPath] absoluto) do workspace
   /// ativo. Para perguntar por outro workspace (badge do rail), use
@@ -4149,10 +4315,21 @@ class CockpitViewModel extends ChangeNotifier
     // terminal local ficava sem spinner/chime/notificação. O `_statusServer`
     // continua servindo a CLI interna e o fallback in-process.
     _sidecarTurnSub = _sidecar.turnStatus.listen(_onClaudeStatus);
+    // Detached windows BEFORE the layouts: the ones that closed while this app
+    // was down hand their layout back to the store now, and the live ones keep
+    // their workspace (not even the initial selection may activate it here).
+    await _windows.start();
+    _windowClosedSub = _windows.closed.listen(_onWorkspaceWindowClosed);
     // Realms antes dos projetos: o filtro do rail e a seleção inicial dependem
     // do realm ativo. `all()` garante o Default.
     await realmCtrl.load();
     _projectList.addAll(await _projects.all());
+    // Detached window: the workspace name identifies the window in the
+    // taskbar / Dock / Alt-Tab, next to the main one.
+    final hosted = hostedWorkspace;
+    if (hosted != null && !isMobilePlatform) {
+      unawaited(windowManager.setTitle(hosted.name));
+    }
     // Carrega os layouts salvos (mas não reconstrói nada ainda — lazy).
     for (final project in _projectList) {
       _savedLayouts[project.id] = await _layoutStore.load(project.id);
@@ -4184,6 +4361,10 @@ class CockpitViewModel extends ChangeNotifier
       }
     }
     _selectedProjectId = await _initialSelection();
+    final initial = _selectedProjectId;
+    if (initial != null && isInOtherWindow(initial)) {
+      _selectedProjectId = _selectionAfterClosing(_rootOf(initial));
+    }
     // Só o projeto selecionado é ativado (sobe os processos) no boot.
     final selected = _selectedProjectId;
     // `init()` é chamado fire-and-forget pelo `CockpitPage` (sem await, sem
@@ -4809,7 +4990,7 @@ class CockpitViewModel extends ChangeNotifier
   /// Cockpit (se ligado), senão `null` — rail vazio → `WelcomeView`.
   String? _selectionAfterClosing(String excluding) {
     for (final p in rootProjects) {
-      if (p.id != excluding) return p.id;
+      if (p.id != excluding && !isInOtherWindow(p.id)) return p.id;
     }
     return cockpitWorkspace != null ? Project.cockpitId : null;
   }
@@ -4906,12 +5087,14 @@ class CockpitViewModel extends ChangeNotifier
   /// Encerra o runtime de um projeto (árvore de panes + sessões + foco + caches),
   /// **sem** mexer em persistência. Usado ao remover um workspace e ao detectar
   /// que uma worktree sumiu (mata `pi` + fecha panes — decisão 9).
-  void _disposeProjectRuntime(String id) {
+  void _disposeProjectRuntime(String id, {bool keepScrollback = false}) {
     final tree = _trees.remove(id);
     if (tree != null) {
       for (final leaf in leaves(tree)) {
         for (final sid in leaf.tabs) {
-          _disposeSession(sid);
+          unawaited(
+            _disposeSessionAfterFrame(sid, keepScrollback: keepScrollback),
+          );
         }
       }
     }
@@ -5766,6 +5949,12 @@ class CockpitViewModel extends ChangeNotifier
 
   void selectProject(String id) {
     if (_selectedProjectId == id) return;
+    // Workspace open in another window: that window shows it. Bring it to the
+    // front instead of starting a second copy of the terminals here.
+    if (isInOtherWindow(id)) {
+      unawaited(_windows.focus(_rootOf(id)));
+      return;
+    }
     final diagnostics = PerformanceDiagnostics.instance;
     diagnostics.timeToNextFrame(PerfMetric.workspaceSwitch);
     final readyClock = diagnostics.enabled ? (Stopwatch()..start()) : null;
@@ -7451,8 +7640,11 @@ class CockpitViewModel extends ChangeNotifier
   /// sai do registro na hora: quem for procurá-la no meio do caminho — o
   /// `_openInNeovim` atrás de uma instância viva, por exemplo — não pode achar
   /// uma sessão que está de saída e tentar destruí-la de novo.
-  Future<void> _disposeSessionAfterFrame(String id) async {
-    final session = _detachSession(id);
+  Future<void> _disposeSessionAfterFrame(
+    String id, {
+    bool keepScrollback = false,
+  }) async {
+    final session = _detachSession(id, keepScrollback: keepScrollback);
     await _endOfFrame();
     if (session is OrchestrationSession) {
       await session.dispose();
@@ -7467,7 +7659,7 @@ class CockpitViewModel extends ChangeNotifier
 
   /// Tira a sessão [id] do registro (com o que está pendurado nela) e a
   /// devolve, sem destruir.
-  PaneItem? _detachSession(String id) {
+  PaneItem? _detachSession(String id, {bool keepScrollback = false}) {
     final orchestrationItem = _sessions[id];
     if (orchestrationItem is OrchestrationSession) {
       for (final child in orchestrationItem.terminals.sessions.values) {
@@ -7493,7 +7685,9 @@ class CockpitViewModel extends ChangeNotifier
     // Aba fechada explicitamente → descarta o scrollback persistido (só abas de
     // terminal têm). O app-quit NÃO passa por aqui (chama `s.dispose()` direto em
     // `dispose()`), então o registro sobrevive pra restaurar — que é o objetivo.
-    if (s is TerminalSession) {
+    // Moving the workspace to another window keeps it too ([keepScrollback]):
+    // the history follows it to the new window.
+    if (s is TerminalSession && !keepScrollback) {
       unawaited(_scrollback.delete(projectId: s.projectId, sessionId: id));
     }
     return s;
@@ -7538,6 +7732,9 @@ class CockpitViewModel extends ChangeNotifier
   /// Ativa um projeto (sobe os processos). Se há layout salvo, reconstrói a
   /// árvore + sessões; senão, abre uma pane vazia. Idempotente: já-ativo é no-op.
   Future<void> _activateProject(String id) {
+    // Safety net: no path (CLI, notification, restore) may start here the
+    // processes of a workspace another window hosts.
+    if (isInOtherWindow(id)) return Future<void>.value();
     final pending = _projectActivations[id];
     if (pending != null) return pending;
     if (_trees.containsKey(id)) return Future<void>.value();
@@ -8521,6 +8718,7 @@ class CockpitViewModel extends ChangeNotifier
     unawaited(_remoteTurnSub?.cancel());
     unawaited(_remoteCliSub?.cancel());
     unawaited(_sidecarTurnSub?.cancel());
+    unawaited(_windowClosedSub?.cancel());
     // O GitController é dono dos próprios timers/watchers; o módulo o
     // descarta junto com a rota. Aqui só desligamos o repasse de notify.
     git.removeListener(_onGitNotify);

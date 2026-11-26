@@ -674,6 +674,13 @@ class _Translations$cockpit$cockpitPage$es extends Translations$cockpit$cockpitP
 	@override String get closeWorkspaceTitle => 'Cerrar workspace';
 	@override String closeWorkspaceMessage({required Object name}) => '¿Cerrar "${name}"? Los agentes de este workspace se cerrarán. La carpeta en el disco se conserva.';
 	@override String get closeAction => 'Cerrar';
+	@override String get openWindowTitle => 'Abrir en una ventana nueva';
+	@override String openWindowMessage({required Object name}) => 'Las terminales de "${name}" se cerrarán aquí y se volverán a abrir en la ventana nueva con su historial. Los procesos que se ejecutan en ellas, incluidos los agentes, se detienen.';
+	@override String get openWindowAction => 'Abrir ventana';
+	@override String get openWindowFailedTitle => 'No se pudo abrir la ventana';
+	@override String openWindowFailedSeed({required Object detail}) => 'Cockpit no pudo preparar la ventana nueva. ${detail}';
+	@override String openWindowFailedLaunch({required Object detail}) => 'La ventana nueva de Cockpit no se inició. ${detail}';
+	@override String get openWindowUnsupported => 'Este workspace no se puede abrir en una ventana separada.';
 	@override String get removeWorktreeTitle => 'Quitar worktree';
 	@override String removeWorktreeMessage({required Object name, required Object warn}) => '¿Quitar "${name}"? La carpeta del worktree y la branch se eliminarán y los agentes de este fork se cerrarán.${warn}';
 	@override String removeWorktreeWarning({required Object name}) => '\n\nAdvertencia: la branch "${name}" aún no se ha fusionado — eliminarla (git branch -D) descarta el trabajo no fusionado.';
@@ -1228,6 +1235,8 @@ class _Translations$cockpit$projectsRail$es extends Translations$cockpit$project
 	@override String get remove => 'Quitar';
 	@override String get moveToRealm => 'Mover a realm';
 	@override String get copyWorkspaceId => 'Copiar id del workspace';
+	@override String get openInNewWindow => 'Abrir en una ventana nueva';
+	@override String get openInOtherWindow => 'Abierto en otra ventana. Haz clic para mostrarla.';
 	@override String get rename => 'Renombrar';
 	@override String get close => 'Cerrar';
 	@override String get newRealm => 'Nuevo realm…';
@@ -2528,6 +2537,13 @@ extension on TranslationsEs {
 			'cockpit.cockpitPage.closeWorkspaceTitle' => 'Cerrar workspace',
 			'cockpit.cockpitPage.closeWorkspaceMessage' => ({required Object name}) => '¿Cerrar "${name}"? Los agentes de este workspace se cerrarán. La carpeta en el disco se conserva.',
 			'cockpit.cockpitPage.closeAction' => 'Cerrar',
+			'cockpit.cockpitPage.openWindowTitle' => 'Abrir en una ventana nueva',
+			'cockpit.cockpitPage.openWindowMessage' => ({required Object name}) => 'Las terminales de "${name}" se cerrarán aquí y se volverán a abrir en la ventana nueva con su historial. Los procesos que se ejecutan en ellas, incluidos los agentes, se detienen.',
+			'cockpit.cockpitPage.openWindowAction' => 'Abrir ventana',
+			'cockpit.cockpitPage.openWindowFailedTitle' => 'No se pudo abrir la ventana',
+			'cockpit.cockpitPage.openWindowFailedSeed' => ({required Object detail}) => 'Cockpit no pudo preparar la ventana nueva. ${detail}',
+			'cockpit.cockpitPage.openWindowFailedLaunch' => ({required Object detail}) => 'La ventana nueva de Cockpit no se inició. ${detail}',
+			'cockpit.cockpitPage.openWindowUnsupported' => 'Este workspace no se puede abrir en una ventana separada.',
 			'cockpit.cockpitPage.removeWorktreeTitle' => 'Quitar worktree',
 			'cockpit.cockpitPage.removeWorktreeMessage' => ({required Object name, required Object warn}) => '¿Quitar "${name}"? La carpeta del worktree y la branch se eliminarán y los agentes de este fork se cerrarán.${warn}',
 			'cockpit.cockpitPage.removeWorktreeWarning' => ({required Object name}) => '\n\nAdvertencia: la branch "${name}" aún no se ha fusionado — eliminarla (git branch -D) descarta el trabajo no fusionado.',
@@ -2844,6 +2860,8 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.advance' => 'Pasar a la siguiente columna',
 			'cockpit.kanbanView.advanceHold' => 'Mover a la siguiente columna (mantener: mover a la última)',
 			'cockpit.kanbanView.advanceBack' => 'Volver una columna',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.emptyColumn' => 'Sin tarjetas',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n, one: '1 tarjeta', other: '${n} tarjetas', ), 
 			'cockpit.kanbanView.notes' => 'Nota',
@@ -2851,8 +2869,6 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.comments' => 'Comentarios',
 			'cockpit.kanbanView.addComment' => 'Añadir comentario',
 			'cockpit.kanbanView.commentPlaceholder' => 'Escribe un comentario',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.noComments' => 'Aún no hay comentarios',
 			'cockpit.kanbanView.closeDetail' => 'Cerrar',
 			'cockpit.kanbanView.notABoard' => 'Este archivo aún no tiene columnas ## — se abre como markdown.',
@@ -2935,6 +2951,8 @@ extension on TranslationsEs {
 			'cockpit.projectsRail.remove' => 'Quitar',
 			'cockpit.projectsRail.moveToRealm' => 'Mover a realm',
 			'cockpit.projectsRail.copyWorkspaceId' => 'Copiar id del workspace',
+			'cockpit.projectsRail.openInNewWindow' => 'Abrir en una ventana nueva',
+			'cockpit.projectsRail.openInOtherWindow' => 'Abierto en otra ventana. Haz clic para mostrarla.',
 			'cockpit.projectsRail.rename' => 'Renombrar',
 			'cockpit.projectsRail.close' => 'Cerrar',
 			'cockpit.projectsRail.newRealm' => 'Nuevo realm…',
@@ -3356,6 +3374,8 @@ extension on TranslationsEs {
 			'settings.page.storage.quitCockpit' => 'Salir de Cockpit',
 			'settings.page.storage.chooseFolderDialogTitle' => 'Elige una carpeta para los datos de Cockpit',
 			'settings.page.terminal.sectionDefaultTerminal' => 'Terminal predeterminado',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.terminal.engineTitle' => 'Motor',
 			'settings.page.terminal.engineDesc' => 'Usado por nuevas pestañas de terminal y buffers de salida de tasks. Las pestañas abiertas mantienen su motor actual.',
 			'settings.page.terminal.shellTitle' => 'Shell',
@@ -3365,8 +3385,6 @@ extension on TranslationsEs {
 			'settings.page.terminal.closeOnExitTitle' => 'Cerrar la pestaña cuando el shell termine',
 			'settings.page.terminal.closeOnExitDesc' => 'Cuando un shell termina por sí solo (exit, Ctrl-D), cierra su pestaña en lugar de dejar un terminal muerto.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Colores de la app, resaltado de código y paleta del terminal.',
 			'settings.page.appearance.modeTitle' => 'Modo',

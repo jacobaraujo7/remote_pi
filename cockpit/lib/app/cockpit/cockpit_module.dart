@@ -99,6 +99,10 @@ import 'package:cockpit/app/cockpit/domain/contracts/workspace_layout_store.dart
 import 'package:cockpit/app/cockpit/domain/contracts/worktree_manager.dart';
 import 'package:cockpit/app/cockpit/domain/value_objects/update_target.dart';
 import 'package:cockpit/app/cockpit/ui/cockpit_page.dart';
+import 'package:cockpit/app/cockpit/ui/document/running_instance.dart';
+import 'package:cockpit/app/cockpit/ui/document/app_activation_channel.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/workspace_window_service.dart';
+import 'package:cockpit/app/cockpit/data/windows/workspace_window_service_impl.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/remote/remote_hosts_controller.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/git_controller.dart';
@@ -115,6 +119,7 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/update_viewmodel.dart';
 import 'package:cockpit/app/core/data/repositories/json_settings_store.dart';
 import 'package:cockpit/app/core/data/setup/json_state_store.dart';
 import 'package:cockpit/app/core/data/setup/storage_location.dart';
+import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 import 'package:cockpit/app/core/ui/window_activity_controller.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kReleaseMode;
 import 'package:window_manager/window_manager.dart' show windowManager;
@@ -184,14 +189,29 @@ Future<Module> buildCockpitModule({
     debugPrint('Falha ao iniciar notificações: $error');
   }
 
+  final workspaceLayouts = JsonWorkspaceLayoutStore(layoutStore);
+
   return createModule(
     path: '/',
     register: (c) {
       c
         ..addInstance<ProjectRepository>(JsonProjectRepository(projectStore))
         ..addInstance<RealmRepository>(JsonRealmRepository(realmStore))
-        ..addInstance<WorkspaceLayoutStore>(
-          JsonWorkspaceLayoutStore(layoutStore),
+        ..addInstance<WorkspaceLayoutStore>(workspaceLayouts)
+        // Detached workspace windows: another Cockpit process on an isolated
+        // profile. The layout comes back through this same store on close.
+        ..addInstance<WorkspaceWindowService>(
+          WorkspaceWindowServiceImpl(
+            layoutStore: workspaceLayouts,
+            focuser: (home, pid) async {
+              // macOS: the main window yields activation (macOS 14+); the
+              // detached window also shows itself on `focus-window`.
+              final activated =
+                  pid != null && await AppActivationChannel.activate(pid);
+              final answered = await RunningInstance.forwardFocus(home: home);
+              return activated || answered;
+            },
+          ),
         )
         ..addInstance<DismissedUpdateStore>(
           JsonDismissedUpdateStore(settingsStore),
@@ -401,6 +421,10 @@ SelfUpdater _buildSelfUpdater(UpdateTarget target) {
   // instalar/relançar — o run morre com "Lost connection to device" sem erro.
   // Self-update só faz sentido no build release distribuído.
   if (!kReleaseMode) return const NoopSelfUpdater();
+  // Detached workspace window: the main window owns updates. A Sparkle/
+  // WinSparkle here would download the same update in parallel and ask THIS
+  // process to quit to install it, taking the workspace down with it.
+  if (cockpitWorkspaceWindowId() != null) return const NoopSelfUpdater();
   final feed = target.selfUpdateFeedUrl;
   if (feed == null) return const NoopSelfUpdater();
   return AutoUpdaterSelfUpdater(

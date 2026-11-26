@@ -30,6 +30,24 @@ String? cockpitIsolatedRoot({
 
 String? cockpitRuntimeHome() => cockpitIsolatedRoot() ?? remotePiHome();
 
+/// Variable that marks a process as a **detached workspace window**: its value
+/// is the id of the workspace it hosts. The main window sets it when detaching
+/// (see `WorkspaceWindowService`), always together with a dedicated
+/// [cockpitIsolatedRoot]. That gives the window state, sockets and a sidecar
+/// separate from the main app's.
+const String cockpitWorkspaceWindowEnv = 'COCKPIT_WORKSPACE_WINDOW';
+
+/// Id of the workspace hosted by this process, or `null` in the main window.
+/// Without an isolated root the marker is ignored: hosting the workspace on
+/// the main app's state would make both processes write the same files.
+String? cockpitWorkspaceWindowId({Map<String, String>? environment}) {
+  final env = environment ?? Platform.environment;
+  final raw = env[cockpitWorkspaceWindowEnv]?.trim();
+  if (raw == null || raw.isEmpty) return null;
+  if (cockpitIsolatedRoot(environment: env) == null) return null;
+  return raw;
+}
+
 /// Onde a **CLI interna** (`cockpit`) é materializada, e o único diretório que o
 /// app prefixa no PATH das suas abas.
 ///

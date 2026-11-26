@@ -596,6 +596,13 @@ class _Translations$cockpit$cockpitPage$zh extends Translations$cockpit$cockpitP
 	@override String get closeWorkspaceTitle => '关闭工作区';
 	@override String closeWorkspaceMessage({required Object name}) => '关闭「${name}」？此工作区中的智能体将被终止。磁盘上的文件夹会保留。';
 	@override String get closeAction => '关闭';
+	@override String get openWindowTitle => '在新窗口中打开';
+	@override String openWindowMessage({required Object name}) => '「${name}」的终端将在此处关闭，并带着历史记录在新窗口中重新打开。其中正在运行的进程（包括智能体）会被停止。';
+	@override String get openWindowAction => '打开窗口';
+	@override String get openWindowFailedTitle => '无法打开窗口';
+	@override String openWindowFailedSeed({required Object detail}) => 'Cockpit 无法准备新窗口。${detail}';
+	@override String openWindowFailedLaunch({required Object detail}) => '新的 Cockpit 窗口未能启动。${detail}';
+	@override String get openWindowUnsupported => '此工作区无法在单独的窗口中打开。';
 	@override String get removeWorktreeTitle => '移除 worktree';
 	@override String removeWorktreeMessage({required Object name, required Object warn}) => '移除「${name}」？worktree 文件夹和分支将被删除，此派生中的智能体将被终止。${warn}';
 	@override String removeWorktreeWarning({required Object name}) => '\n\n警告：分支「${name}」尚未合并——移除它（git branch -D）会丢弃未合并的工作。';
@@ -1147,6 +1154,8 @@ class _Translations$cockpit$projectsRail$zh extends Translations$cockpit$project
 	@override String get remove => '移除';
 	@override String get moveToRealm => '移动到领域';
 	@override String get copyWorkspaceId => '复制工作区 ID';
+	@override String get openInNewWindow => '在新窗口中打开';
+	@override String get openInOtherWindow => '已在另一个窗口中打开。点击以显示。';
 	@override String get rename => '重命名';
 	@override String get close => '关闭';
 	@override String get newRealm => '新建领域…';
@@ -2447,6 +2456,13 @@ extension on TranslationsZh {
 			'cockpit.cockpitPage.closeWorkspaceTitle' => '关闭工作区',
 			'cockpit.cockpitPage.closeWorkspaceMessage' => ({required Object name}) => '关闭「${name}」？此工作区中的智能体将被终止。磁盘上的文件夹会保留。',
 			'cockpit.cockpitPage.closeAction' => '关闭',
+			'cockpit.cockpitPage.openWindowTitle' => '在新窗口中打开',
+			'cockpit.cockpitPage.openWindowMessage' => ({required Object name}) => '「${name}」的终端将在此处关闭，并带着历史记录在新窗口中重新打开。其中正在运行的进程（包括智能体）会被停止。',
+			'cockpit.cockpitPage.openWindowAction' => '打开窗口',
+			'cockpit.cockpitPage.openWindowFailedTitle' => '无法打开窗口',
+			'cockpit.cockpitPage.openWindowFailedSeed' => ({required Object detail}) => 'Cockpit 无法准备新窗口。${detail}',
+			'cockpit.cockpitPage.openWindowFailedLaunch' => ({required Object detail}) => '新的 Cockpit 窗口未能启动。${detail}',
+			'cockpit.cockpitPage.openWindowUnsupported' => '此工作区无法在单独的窗口中打开。',
 			'cockpit.cockpitPage.removeWorktreeTitle' => '移除 worktree',
 			'cockpit.cockpitPage.removeWorktreeMessage' => ({required Object name, required Object warn}) => '移除「${name}」？worktree 文件夹和分支将被删除，此派生中的智能体将被终止。${warn}',
 			'cockpit.cockpitPage.removeWorktreeWarning' => ({required Object name}) => '\n\n警告：分支「${name}」尚未合并——移除它（git branch -D）会丢弃未合并的工作。',
@@ -2763,6 +2779,8 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.emptyColumn' => '没有卡片',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 张卡片', other: '${n} 张卡片', ), 
 			'cockpit.kanbanView.notes' => '备注',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.notesPlaceholder' => '写个备注',
 			'cockpit.kanbanView.comments' => '评论',
 			'cockpit.kanbanView.addComment' => '添加评论',
@@ -2770,8 +2788,6 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.noComments' => '暂无评论',
 			'cockpit.kanbanView.closeDetail' => '关闭',
 			'cockpit.kanbanView.notABoard' => '此文件还没有 ## 列——将以 Markdown 打开。',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.startBoard' => '创建看板',
 			'cockpit.kanbanView.couldNotSave' => '无法保存看板',
 			'cockpit.kanbanView.unrecognizedBlock' => '解析器无法识别——只能整体拖动，不支持内联编辑。',
@@ -2851,6 +2867,8 @@ extension on TranslationsZh {
 			'cockpit.projectsRail.remove' => '移除',
 			'cockpit.projectsRail.moveToRealm' => '移动到领域',
 			'cockpit.projectsRail.copyWorkspaceId' => '复制工作区 ID',
+			'cockpit.projectsRail.openInNewWindow' => '在新窗口中打开',
+			'cockpit.projectsRail.openInOtherWindow' => '已在另一个窗口中打开。点击以显示。',
 			'cockpit.projectsRail.rename' => '重命名',
 			'cockpit.projectsRail.close' => '关闭',
 			'cockpit.projectsRail.newRealm' => '新建领域…',
@@ -3275,6 +3293,8 @@ extension on TranslationsZh {
 			'settings.page.terminal.engineTitle' => '引擎',
 			'settings.page.terminal.engineDesc' => '供新的终端标签页和任务输出缓冲区使用。已打开的标签页保持当前引擎。',
 			'settings.page.terminal.shellTitle' => 'Shell',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.terminal.shellDesc' => '新建终端标签页打开的 shell。「+」旁的箭头仍可为单个标签页打开任意其他 shell。',
 			'settings.page.terminal.noWslMessage' => '未找到 WSL 发行版。安装一个（wsl.exe --install）并重启 Cockpit 后，它会出现在这里。',
 			'settings.page.terminal.sectionBehavior' => '行为',
@@ -3284,8 +3304,6 @@ extension on TranslationsZh {
 			'settings.page.appearance.themeTitle' => '主题',
 			'settings.page.appearance.themeDesc' => '应用颜色、代码高亮和终端配色。',
 			'settings.page.appearance.modeTitle' => '模式',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.modeDesc' => '使用主题的哪个变体。',
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '「${theme}」只有深色变体，此项不生效。',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '「${theme}」只有浅色变体，此项不生效。',

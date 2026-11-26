@@ -7,6 +7,8 @@ import 'package:cockpit/app/cockpit/ui/widgets/branch_switch_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/clone_repository_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/git_process_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
+import 'package:cockpit/app/cockpit/ui/workspace_window_error_message.dart';
+import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/widgets.dart';
 import 'package:cockpit/app/core/utils/native_folder_picker.dart';
 import 'package:cockpit/app/core/utils/user_home.dart';
@@ -165,6 +167,37 @@ Future<void> deleteProject(BuildContext context, Project project) async {
   );
   if (!ok) return;
   await vm.removeProject(project.id);
+}
+
+/// "Open in new window": moves the workspace (and its worktrees) to another
+/// Cockpit window. Asks for confirmation only when there are live terminals,
+/// since they are closed here and reopened there (history moves, the process
+/// does not).
+Future<void> openWorkspaceInNewWindow(
+  BuildContext context,
+  Project project,
+) async {
+  final vm = _vm(context);
+  if (vm.liveTerminalCount(project.id) > 0) {
+    final ok = await showConfirmDialog(
+      context,
+      title: context.t.cockpit.cockpitPage.openWindowTitle,
+      message: context.t.cockpit.cockpitPage.openWindowMessage(
+        name: project.name,
+      ),
+      confirmLabel: context.t.cockpit.cockpitPage.openWindowAction,
+    );
+    if (!ok) return;
+  }
+  final result = await vm.openWorkspaceInNewWindow(project.id);
+  if (!context.mounted) return;
+  if (result case Failure(:final error)) {
+    await showInfoDialog(
+      context,
+      title: context.t.cockpit.cockpitPage.openWindowFailedTitle,
+      message: workspaceWindowErrorMessage(context, error),
+    );
+  }
 }
 
 /// Rótulo da operação git: nome do workspace em single-root; basename da root
