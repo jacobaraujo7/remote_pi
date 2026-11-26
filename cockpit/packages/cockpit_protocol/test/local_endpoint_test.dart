@@ -17,7 +17,8 @@ void main() {
   tearDown(() => dir.deleteSync(recursive: true));
 
   test('anuncia, aceita conexão e devolve os mesmos bytes', () async {
-    final endpoint = await LocalEndpoint.bind(path);
+    final mode = LocalEndpoint.platformTransport;
+    final endpoint = await LocalEndpoint.bind(path, transport: mode);
     addTearDown(endpoint.close);
     endpoint.listener.listen((socket) {
       socket.add([1, 2, 3]);
@@ -26,12 +27,46 @@ void main() {
 
     expect(LocalEndpoint.announcedAt(path), isTrue);
 
-    final client = await LocalEndpoint.connect(path);
+    final client = await LocalEndpoint.connect(path, transport: mode);
     expect(await client.socket.first, [1, 2, 3]);
     // O token existe exatamente onde o transporte é TCP compartilhado.
-    expect(client.token, LocalEndpoint.usesTcp ? isNotEmpty : isNull);
+    expect(
+      client.token,
+      mode == LocalEndpointTransport.tcp ? isNotEmpty : isNull,
+    );
     expect(client.token, endpoint.token);
   });
+
+  test('transporte TCP explícito funciona também no POSIX', () async {
+    const tcp = LocalEndpointTransport.tcp;
+    final endpoint = await LocalEndpoint.bind(path, transport: tcp);
+    addTearDown(endpoint.close);
+    endpoint.listener.listen((socket) {
+      socket.add([4, 5, 6]);
+      socket.close();
+    });
+
+    expect(endpoint.transport, tcp);
+    expect(endpoint.token, isNotEmpty);
+
+    final client = await LocalEndpoint.connect(path, transport: tcp);
+    addTearDown(client.socket.destroy);
+    expect(await client.socket.first, [4, 5, 6]);
+    expect(client.token, endpoint.token);
+  });
+
+  test('TCP grava o rendezvous 0600 ANTES do token', () async {
+    final endpoint = await LocalEndpoint.bind(
+      path,
+      transport: LocalEndpointTransport.tcp,
+    );
+    addTearDown(endpoint.close);
+
+    if (!Platform.isWindows) {
+      // 0x1FF isola os bits de permissão do restante do modo (tipo do inode).
+      expect(File(path).statSync().mode & 0x1FF, 0x180); // 0600
+    }
+  }, testOn: '!windows');
 
   test(
     'close remove o anúncio (senão a próxima descoberta se engana)',

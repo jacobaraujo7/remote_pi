@@ -250,20 +250,37 @@ class RemoteHostConnector {
     // paga round-trip novo — só mudou quem pergunta.
     final shell = await _hostShell();
 
-    // Servidor já de pé? No POSIX o anúncio é lido num único comando (`test
-    // -S` + `cat` do rendezvous, ver PosixHostShell); a ausência é descoberta
-    // pelo túnel (comportamento de antes). No Windows é o arquivo de
-    // rendezvous que responde, e sem ele nem adianta abrir forward.
-    var endpoint = await shell.readEndpoint();
+    // Servidor já de pé? No POSIX o anúncio UNIX é determinístico (sem SSH) e
+    // a ausência é descoberta pelo túnel, como desde o plano 58. Depois que um
+    // host recusou o forward UNIX, só o rendezvous TCP pode estar atendendo —
+    // aí a leitura custa um comando, mas é o único transporte possível. No
+    // Windows o anúncio já é sempre o rendezvous TCP.
+    var endpoint = _tcpFallback
+        ? await shell.readTcpEndpoint()
+        : await shell.readEndpoint();
     if (endpoint != null) {
-      final service = await _connectWithFallback(shell, endpoint);
+      var service = await _connectVia(shell, endpoint);
       if (service != null) return service;
+      if (endpoint is UnixSocketEndpoint) {
+        // Um rendezvous TCP sobrevive ao restart do app e o socket UNIX não
+        // existe; se o caminho UNIX falhou de um jeito que sugere arquivo no
+        // lugar do socket, adota o anúncio TCP antes de subir outro servidor —
+        // senão as sessões do servidor TCP ficariam órfãs.
+        if (_tcpFallback || _unixFailureSuggestsRendezvous) {
+          final tcp = await shell.readTcpEndpoint();
+          if (tcp is TcpEndpoint) {
+            _tcpFallback = true;
+            service = await _connectVia(shell, tcp);
+            if (service != null) return service;
+          }
+        }
+      }
     }
 
     // Servidor ausente/parado/desatualizado no host: bootstrap pelo SSH.
     _setPhase(RemoteHostPhase.installingServer);
-    await _installAndStartServer(shell);
-    endpoint = await shell.awaitEndpoint();
+    await _installAndStartServer(shell, tcp: _tcpFallback);
+    endpoint = await shell.awaitEndpoint(tcp: _tcpFallback);
     if (endpoint == null) {
       _setPhase(RemoteHostPhase.failed);
       final log = await shell.tailBootLog();
@@ -272,7 +289,22 @@ class RemoteHostConnector {
         log.isEmpty ? 'server did not start on the host' : log,
       );
     }
-    final service = await _connectWithFallback(shell, endpoint, attempts: 20);
+    var service = await _connectVia(shell, endpoint, attempts: 20);
+    if (service == null && endpoint is UnixSocketEndpoint && _tcpFallback) {
+      // O veredito do forward UNIX só chegou depois do arranque. Sobe a outra
+      // ponta uma vez; não é o caminho comum de um host que já respondia.
+      await _installAndStartServer(shell, tcp: true);
+      endpoint = await shell.awaitEndpoint(tcp: true);
+      if (endpoint == null) {
+        _setPhase(RemoteHostPhase.failed);
+        final log = await shell.tailBootLog();
+        throw RemoteHostException(
+          RemoteHostErrorKind.serverInstallFailed,
+          log.isEmpty ? 'server did not start on the host' : log,
+        );
+      }
+      service = await _connectVia(shell, endpoint, attempts: 20);
+    }
     if (service != null) return service;
     _setPhase(RemoteHostPhase.failed);
     // Nem o socket nem o rendezvous atenderam: o rastro do arranque é a única
@@ -284,26 +316,10 @@ class RemoteHostConnector {
     );
   }
 
-  /// Tenta o transporte [endpoint] e, se ninguém atender, tenta a OUTRA ponta
-  /// anunciada no host.
-  ///
-  /// O host POSIX passou a subir o servidor em TCP + rendezvous (`--tcp`) para
-  /// SSHs sem forward de socket UNIX (Tailscale SSH); anúncios antigos ou de
-  /// binários velhos (que ignoram a flag) são socket UNIX. Re-ler o anúncio
-  /// (em vez de chutar a outra forma) cobre o anúncio ter trocado de transporte
-  /// entre a primeira leitura e a falha — e não tenta nada quando só há uma
-  /// forma anunciada, que é o caso comum.
-  Future<RemoteTerminalService?> _connectWithFallback(
-    HostShell shell,
-    RemoteEndpoint endpoint, {
-    int attempts = 1,
-  }) async {
-    final service = await _connectVia(shell, endpoint, attempts: attempts);
-    if (service != null) return service;
-    final other = await shell.readEndpoint();
-    if (other == null || other.runtimeType == endpoint.runtimeType) return null;
-    return _connectVia(shell, other, attempts: attempts);
-  }
+  /// O forward UNIX falhou como se houvesse um arquivo (rendezvous) no lugar
+  /// do socket. "No such file or directory" é o oposto: não há servidor algum.
+  bool get _unixFailureSuggestsRendezvous =>
+      unixFailureSuggestsRendezvous(_lastUnixForwardFailure);
 
   /// Abre o túnel para [endpoint] e completa o handshake. `null` = não havia
   /// servidor atendendo (ou ele estava desatualizado), e o chamador deve
@@ -323,6 +339,15 @@ class RemoteHostConnector {
         identityFile: host.effectiveIdentityFile,
       );
     } on SshTunnelException catch (e) {
+      // O ssh pode morrer antes de o socket local aparecer quando o servidor
+      // recusa o canal streamlocal. Esse também é o sinal de fallback TCP —
+      // não é host inalcançável.
+      if (endpoint is UnixSocketEndpoint &&
+          isStreamlocalUnsupported(e.detail)) {
+        _lastUnixForwardFailure = e.detail;
+        _tcpFallback = true;
+        return null;
+      }
       _setPhase(RemoteHostPhase.failed);
       // "Host key verification failed" não é host inalcançável: a máquina
       // respondeu, o que falhou foi a confiança. Distinguir importa porque a
@@ -341,6 +366,18 @@ class RemoteHostConnector {
       token: endpoint.token,
       attempts: attempts,
     );
+    if (connection == null && endpoint is UnixSocketEndpoint) {
+      final failure = await tunnel.unixForwardFailure();
+      _lastUnixForwardFailure = failure;
+      // Tailscale SSH recusa `direct-streamlocal@openssh.com` com "unknown
+      // channel type". Só esse sinal autoriza trocar o transporte; qualquer
+      // outra falha de canal pode ser servidor ausente, que continua em UDS.
+      if (failure != null && isStreamlocalUnsupported(failure)) {
+        _tcpFallback = true;
+      }
+    } else if (connection != null) {
+      _lastUnixForwardFailure = null;
+    }
     // Servidor VELHO respondendo: sem esta checagem o cliente conectava nele e
     // pronto — o bootstrap só rodava quando ninguém atendia, então um host
     // instalado uma vez ficava congelado para sempre naquela versão. Uma vez
@@ -622,6 +659,15 @@ class RemoteHostConnector {
   /// processo velho precisa morrer para a troca transacional valer.
   bool _staleServer = false;
 
+  /// Host POSIX que recusou o forward de socket UNIX (Tailscale SSH). Nesse
+  /// caso o servidor sobe com `--tcp`. Fica no conector — não é um switch
+  /// global, e hosts que funcionam com UDS nunca passam por aqui.
+  bool _tcpFallback = false;
+
+  /// stderr do último forward UNIX que não completou o handshake. É o que
+  /// distingue "não há servidor" de "este SSH não encaminha socket".
+  String? _lastUnixForwardFailure;
+
   /// A comparação de versão do servidor roda uma vez por host por sessão —
   /// reconectar (o que acontece a cada oscilação de rede) não paga o SSH extra
   /// de novo.
@@ -656,7 +702,10 @@ class RemoteHostConnector {
     }
   }
 
-  Future<void> _installAndStartServer(HostShell shell) async {
+  Future<void> _installAndStartServer(
+    HostShell shell, {
+    required bool tcp,
+  }) async {
     var installed = await shell.serverInstalled();
     // Stale por duas vias: marcado depois de uma conexão bem-sucedida (a
     // freshness barata, uma vez por host por sessão), ou detectado AQUI quando
@@ -665,8 +714,9 @@ class RemoteHostConnector {
     // chegou a ser levantada. O digest custa um SSH só quando instalado e a
     // marca ainda não existe.
     if (installed && !_staleServer) {
-      _staleServer = await _serverFreshness.run(() => _remoteServerIsStale(shell));
-      if (_staleServer) installed = false;
+      _staleServer = await _serverFreshness.run(
+        () => _remoteServerIsStale(shell),
+      );
     }
     if (installed && _staleServer) installed = false;
 
@@ -724,7 +774,7 @@ class RemoteHostConnector {
       }
     }
     try {
-      await shell.startServer(idleSeconds: _remoteIdleSeconds);
+      await shell.startServer(idleSeconds: _remoteIdleSeconds, tcp: tcp);
     } on HostShellException catch (e) {
       _setPhase(RemoteHostPhase.failed);
       throw RemoteHostException(

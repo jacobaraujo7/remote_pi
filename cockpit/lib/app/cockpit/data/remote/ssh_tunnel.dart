@@ -21,9 +21,11 @@ class SshTunnel {
     this.localSocketPath,
     this.target, {
     this.localPort,
+    required this._stderr,
   });
 
   final Process _process;
+  final StringBuffer _stderr;
 
   /// Socket local que espelha o socket remoto do cockpit-server. Vazio quando
   /// a ponta local é TCP (Windows — ver [localPort]).
@@ -136,6 +138,7 @@ class SshTunnel {
         localPath,
         target,
         localPort: localTcpPort,
+        stderr: stderrBuffer,
       );
       unawaited(
         process.exitCode.then((_) {
@@ -324,7 +327,54 @@ class SshTunnel {
       // já removido.
     }
   }
+
+  /// Espera o ssh dizer POR QUE o forward UNIX não abriu o canal remoto.
+  ///
+  /// O EOF local pode chegar antes do stderr do ssh; `open failed` é a linha
+  /// que fecha o diagnóstico, então paramos nela (ou no timeout curto). O
+  /// caminho comum — servidor UNIX atendendo — nunca chama isto.
+  Future<String?> unixForwardFailure({
+    Duration timeout = const Duration(milliseconds: 300),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (true) {
+      final text = _stderr.toString();
+      if (_channelOpenFailed.hasMatch(text)) return text;
+      if (_closed.isCompleted || !DateTime.now().isBefore(deadline)) {
+        return text.isEmpty ? null : text;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+  }
 }
+
+/// O servidor SSH recusou o canal `direct-streamlocal@openssh.com`.
+///
+/// Tailscale SSH responde `unknown channel type`; variações de OpenSSH e
+/// proxies usam `unsupported channel type`. É o sinal limpo para o fallback
+/// TCP — qualquer outra falha de `open failed` não autoriza trocar de
+/// transporte sozinha.
+bool isStreamlocalUnsupported(String stderr) =>
+    _streamlocalUnsupported.hasMatch(stderr);
+
+/// A falha do forward UNIX sugere um arquivo de rendezvous no lugar do socket?
+///
+/// `Connection refused` (ou `not a socket`) acontece quando o caminho existe
+/// mas não é um socket — no nosso caso, o JSON do servidor `--tcp`. Já
+/// `No such file or directory` significa que não há servidor nenhum e o
+/// caminho default (UDS) deve seguir. `unknown channel type` tem precedência:
+/// é o SSH recusando o canal, não o alvo.
+bool unixFailureSuggestsRendezvous(String? detail) {
+  if (detail == null || isStreamlocalUnsupported(detail)) return false;
+  return !detail.contains('No such file or directory');
+}
+
+final RegExp _streamlocalUnsupported = RegExp(
+  r'(unknown|unsupported) channel type',
+  caseSensitive: false,
+);
+
+final RegExp _channelOpenFailed = RegExp(r'open failed', caseSensitive: false);
 
 /// Injeção de senha no `ssh` do sistema via `SSH_ASKPASS` (plano 60, Wave C).
 /// Escreve a senha num arquivo temporário 0600 e um helper 0700 que faz `cat`

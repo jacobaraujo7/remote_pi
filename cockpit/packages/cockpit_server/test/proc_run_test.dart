@@ -7,6 +7,8 @@ import 'package:cockpit_protocol/cockpit_protocol.dart';
 import 'package:cockpit_server/cockpit_server.dart';
 import 'package:test/test.dart';
 
+const _tcp = LocalEndpointTransport.tcp;
+
 // `proc.run`: exec de aba remota / `.panel` remoto roda NO HOST.
 void main() {
   late Directory dir;
@@ -15,16 +17,14 @@ void main() {
   setUp(() {
     dir = Directory.systemTemp.createTempSync('cockpit-proc');
     path = '${dir.path}/s.sock';
-    LocalEndpoint.debugForceTcp = true;
   });
   tearDown(() {
-    LocalEndpoint.debugForceTcp = null;
     dir.deleteSync(recursive: true);
   });
 
   Future<_TestClient> boot() async {
     final server = RemoteServer(_FakeTerminals(), _Fake(), _Fake(), _SpyDb());
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
     return _connectClient(path);
   }
@@ -100,7 +100,7 @@ class _SpyDb implements DbService {
 }
 
 Future<_TestClient> _connectClient(String path) async {
-  final endpoint = await LocalEndpoint.connect(path);
+  final endpoint = await LocalEndpoint.connect(path, transport: _tcp);
   final socket = endpoint.socket;
   addTearDown(socket.destroy);
   final messages = StreamController<RemoteMessage>.broadcast();

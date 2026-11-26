@@ -52,7 +52,9 @@ Future<void> _run(List<String> args) async {
   // não faz forward de socket UNIX — o Tailscale SSH recusa o canal
   // `direct-streamlocal@openssh.com` com "unknown channel type" —, mas aceita
   // o forward TCP comum de `ssh -L`. O default segue sendo socket UNIX.
-  if (args.contains('--tcp')) LocalEndpoint.debugForceTcp = true;
+  final transport = args.contains('--tcp')
+      ? LocalEndpointTransport.tcp
+      : LocalEndpoint.platformTransport;
 
   final injector = AutoInjector()
     ..addLazySingleton<TerminalService>(NativeTerminalService.new)
@@ -82,7 +84,7 @@ Future<void> _run(List<String> args) async {
     };
   }
 
-  await server.bind(socketPath);
+  await server.bind(socketPath, transport: transport);
 
   // Turn-status (plano 60, Wave G): instala o hook do agente no ~/.claude do
   // HOST, apontando pra CLI `cockpit hook` (resolvida por --cli, ao lado do
@@ -119,7 +121,7 @@ Future<void> _run(List<String> args) async {
   // Saída em inglês por decisão (CLI interna não se traduz).
   stdout.writeln(
     'cockpit-server listening on $socketPath'
-    '${LocalEndpoint.usesTcp ? ' (tcp)' : ''}',
+    '${transport == LocalEndpointTransport.tcp ? ' (tcp)' : ''}',
   );
 
   // Desligamento com TETO: `close()` fecha conexões, sessões e PTYs, e

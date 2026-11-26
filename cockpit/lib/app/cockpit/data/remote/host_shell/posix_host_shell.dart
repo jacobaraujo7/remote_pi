@@ -59,21 +59,29 @@ PY
   @override
   bool get installsFromHostBundle => false;
 
-  /// O anúncio no host pode ser de duas formas no MESMO caminho (ver
-  /// `LocalEndpoint`): socket UNIX (modo clássico) ou arquivo de rendezvous
-  /// JSON `{v, port, token}` (servidor subido com `--tcp` — o fallback pra
-  /// hosts cujo SSH não faz forward de socket UNIX, como o Tailscale SSH).
-  /// Um único comando decide: `test -S` identifica o socket; senão, se há
-  /// arquivo comum, é o rendezvous e o `cat` traz o JSON.
+  /// Determinístico a partir da home já resolvida no probe — sem SSH extra.
+  ///
+  /// "Não há servidor" NÃO é decidido aqui: quem descobre é o túnel, que falha
+  /// ao conectar e leva ao bootstrap. É assim desde o plano 58, e manter
+  /// preserva a latência de abertura do caminho POSIX. O rendezvous TCP só é
+  /// lido quando o host já exigiu esse transporte (ver [readTcpEndpoint]).
   @override
-  Future<RemoteEndpoint?> readEndpoint() async {
+  Future<RemoteEndpoint?> readEndpoint() async => UnixSocketEndpoint(_unixPath);
+
+  /// Anúncio do servidor subido com `--tcp`: um arquivo comum no MESMO caminho
+  /// do socket (ver `LocalEndpoint`). Só um comando, e só no caminho de
+  /// fallback — hosts com forward UNIX continuam sem SSH extra.
+  @override
+  Future<RemoteEndpoint?> readTcpEndpoint() async {
     final (code, out, _) = await exec(
-      'if [ -S $_socketPath ]; then echo unix; '
-      'elif [ -f $_socketPath ]; then cat $_socketPath; fi',
+      'if [ -f $_socketPath ]; then cat $_socketPath; fi',
     );
     if (code != 0) return null;
+    return _parseTcpEndpoint(out);
+  }
+
+  static TcpEndpoint? _parseTcpEndpoint(String out) {
     final raw = out.trim();
-    if (raw == 'unix') return UnixSocketEndpoint(_unixPath);
     if (raw.isEmpty) return null;
     try {
       final decoded = jsonDecode(raw);
@@ -88,14 +96,22 @@ PY
   }
 
   @override
-  Future<RemoteEndpoint?> awaitEndpoint() async {
+  Future<RemoteEndpoint?> awaitEndpoint({bool tcp = false}) async {
     // O anúncio aparece quando o servidor faz bind: socket UNIX no modo
     // clássico; rendezvous por ÚLTIMO, já com a porta aceitando conexão. Um
-    // JSON pela metade volta `null` de [readEndpoint] e o poll tenta de novo.
+    // JSON pela metade volta `null` de [readTcpEndpoint] e o poll tenta de
+    // novo. No modo UNIX, `test -S` é o sinal exato.
     for (var attempt = 0; attempt < 10; attempt++) {
       await Future<void>.delayed(Duration(milliseconds: 150 + attempt * 100));
-      final endpoint = await readEndpoint();
-      if (endpoint != null) return endpoint;
+      if (tcp) {
+        final endpoint = await readTcpEndpoint();
+        if (endpoint != null) return endpoint;
+        continue;
+      }
+      final (code, out, _) = await exec(
+        'test -S $_socketPath && echo up || echo down',
+      );
+      if (code == 0 && out.trim().endsWith('up')) return readEndpoint();
     }
     return null;
   }
@@ -333,7 +349,7 @@ fi
   Future<bool> installFromHost() async => false;
 
   @override
-  Future<void> startServer({required int idleSeconds}) async {
+  Future<void> startServer({required int idleSeconds, bool tcp = false}) async {
     final ptyLib = probe.os == 'darwin'
         ? 'libcockpit_pty.dylib'
         : 'libcockpit_pty.so';
@@ -345,12 +361,9 @@ fi
       'COCKPIT_PTY_DYLIB=\$HOME/.cockpit/server/lib/$ptyLib '
       'nohup $serverBinaryPath '
       '--socket $_socketPath '
-      // Sempre TCP + rendezvous (ver `--tcp` no cockpit-server): o fallback
-      // pra hosts cujo SSH não faz forward de socket UNIX custa nada quando
-      // o forward UNIX funciona — o cliente lê o anúncio e monta o `-L` certo.
-      // Um binário VELHO no host ignora a flag e segue no socket UNIX, e o
-      // [readEndpoint] devolve o endpoint que o anúncio de fato for.
-      '--tcp '
+      // Só no fallback: binários velhos ignoram a flag e seguem no UDS, e
+      // hosts com forward UNIX não pagam o custo de trocar de transporte.
+      '${tcp ? '--tcp ' : ''}'
       '--exit-on-idle $idleSeconds '
       '--idle-keeps-sessions '
       '>$bootLogPath 2>&1 & echo started',

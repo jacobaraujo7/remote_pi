@@ -186,8 +186,19 @@ abstract class HostShell {
   /// latência de abertura que existia antes do plano 61.
   Future<RemoteEndpoint?> readEndpoint();
 
+  /// Lê especificamente o rendezvous TCP (`{v, port, token}`).
+  ///
+  /// Só é consultado quando o host já foi visto exigindo TCP (forward UNIX
+  /// recusado) ou quando o caminho UNIX falhou de um jeito que sugere um
+  /// arquivo de rendezvous no lugar do socket. No Windows o anúncio já é
+  /// sempre TCP, então o default delega para [readEndpoint].
+  Future<RemoteEndpoint?> readTcpEndpoint() => readEndpoint();
+
   /// Poll de [readEndpoint] após iniciar o servidor. `null` = desistiu.
-  Future<RemoteEndpoint?> awaitEndpoint();
+  ///
+  /// [tcp] escolhe o anúncio TCP. No POSIX o default é socket UNIX e não gasta
+  /// SSH; o fallback TCP usa o rendezvous porque a porta é efêmera.
+  Future<RemoteEndpoint?> awaitEndpoint({bool tcp = false});
 
   /// `true` se o binário do servidor já está instalado no host.
   Future<bool> serverInstalled();
@@ -212,7 +223,10 @@ abstract class HostShell {
   Future<bool> installFromHost();
 
   /// Sobe o servidor, destacado da sessão SSH.
-  Future<void> startServer({required int idleSeconds});
+  ///
+  /// [tcp] liga o `--tcp` (TCP loopback + rendezvous) em vez do socket UNIX.
+  /// Dialetos que já são TCP por plataforma ignoram a flag.
+  Future<void> startServer({required int idleSeconds, bool tcp = false});
 
   /// Últimos bytes do log de arranque — a evidência quando o servidor não sobe.
   Future<String> tailBootLog({int bytes = 2000});
