@@ -1333,6 +1333,27 @@ class Translations$cockpit$cockpitPage$en {
 	/// en: 'Close'
 	String get closeAction => 'Close';
 
+	/// en: 'Open in new window'
+	String get openWindowTitle => 'Open in new window';
+
+	/// en: 'The terminals of "${name}" will close here and reopen in the new window with their history. Processes running in them, including agents, are stopped.'
+	String openWindowMessage({required Object name}) => 'The terminals of "${name}" will close here and reopen in the new window with their history. Processes running in them, including agents, are stopped.';
+
+	/// en: 'Open window'
+	String get openWindowAction => 'Open window';
+
+	/// en: 'Could not open the window'
+	String get openWindowFailedTitle => 'Could not open the window';
+
+	/// en: 'Cockpit could not prepare the new window. ${detail}'
+	String openWindowFailedSeed({required Object detail}) => 'Cockpit could not prepare the new window. ${detail}';
+
+	/// en: 'The new Cockpit window did not start. ${detail}'
+	String openWindowFailedLaunch({required Object detail}) => 'The new Cockpit window did not start. ${detail}';
+
+	/// en: 'This workspace cannot be opened in a separate window.'
+	String get openWindowUnsupported => 'This workspace cannot be opened in a separate window.';
+
 	/// en: 'Remove worktree'
 	String get removeWorktreeTitle => 'Remove worktree';
 
@@ -2680,6 +2701,12 @@ class Translations$cockpit$projectsRail$en {
 
 	/// en: 'Copy workspace id'
 	String get copyWorkspaceId => 'Copy workspace id';
+
+	/// en: 'Open in new window'
+	String get openInNewWindow => 'Open in new window';
+
+	/// en: 'Open in another window. Click to show it.'
+	String get openInOtherWindow => 'Open in another window. Click to show it.';
 
 	/// en: 'Rename'
 	String get rename => 'Rename';
@@ -5228,6 +5255,13 @@ extension on Translations {
 			'cockpit.cockpitPage.closeWorkspaceTitle' => 'Close workspace',
 			'cockpit.cockpitPage.closeWorkspaceMessage' => ({required Object name}) => 'Close "${name}"? The agents in this workspace will be terminated. The folder on disk is kept.',
 			'cockpit.cockpitPage.closeAction' => 'Close',
+			'cockpit.cockpitPage.openWindowTitle' => 'Open in new window',
+			'cockpit.cockpitPage.openWindowMessage' => ({required Object name}) => 'The terminals of "${name}" will close here and reopen in the new window with their history. Processes running in them, including agents, are stopped.',
+			'cockpit.cockpitPage.openWindowAction' => 'Open window',
+			'cockpit.cockpitPage.openWindowFailedTitle' => 'Could not open the window',
+			'cockpit.cockpitPage.openWindowFailedSeed' => ({required Object detail}) => 'Cockpit could not prepare the new window. ${detail}',
+			'cockpit.cockpitPage.openWindowFailedLaunch' => ({required Object detail}) => 'The new Cockpit window did not start. ${detail}',
+			'cockpit.cockpitPage.openWindowUnsupported' => 'This workspace cannot be opened in a separate window.',
 			'cockpit.cockpitPage.removeWorktreeTitle' => 'Remove worktree',
 			'cockpit.cockpitPage.removeWorktreeMessage' => ({required Object name, required Object warn}) => 'Remove "${name}"? The worktree folder and the branch will be deleted and the agents in this fork will be terminated.${warn}',
 			'cockpit.cockpitPage.removeWorktreeWarning' => ({required Object name}) => '\n\nWarning: the branch "${name}" has not been merged yet — removing it (git branch -D) discards the unmerged work.',
@@ -5544,6 +5578,8 @@ extension on Translations {
 			'cockpit.kanbanView.newCardHere' => 'New card here',
 			'cockpit.kanbanView.duplicateCard' => 'Duplicate',
 			'cockpit.kanbanView.cardLabels' => 'Labels',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.deleteCard' => 'Delete card',
 			'cockpit.kanbanView.advance' => 'Move to next column',
 			'cockpit.kanbanView.advanceHold' => 'Move to next column (hold: move to last column)',
@@ -5551,8 +5587,6 @@ extension on Translations {
 			'cockpit.kanbanView.emptyColumn' => 'No cards',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 card', other: '${n} cards', ), 
 			'cockpit.kanbanView.notes' => 'Note',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.notesPlaceholder' => 'Write a note',
 			'cockpit.kanbanView.comments' => 'Comments',
 			'cockpit.kanbanView.addComment' => 'Add comment',
@@ -5639,6 +5673,8 @@ extension on Translations {
 			'cockpit.projectsRail.remove' => 'Remove',
 			'cockpit.projectsRail.moveToRealm' => 'Move to realm',
 			'cockpit.projectsRail.copyWorkspaceId' => 'Copy workspace id',
+			'cockpit.projectsRail.openInNewWindow' => 'Open in new window',
+			'cockpit.projectsRail.openInOtherWindow' => 'Open in another window. Click to show it.',
 			'cockpit.projectsRail.rename' => 'Rename',
 			'cockpit.projectsRail.close' => 'Close',
 			'cockpit.projectsRail.newRealm' => 'New realm…',
@@ -6056,6 +6092,8 @@ extension on Translations {
 			'settings.page.storage.restartChangeFolderMessage' => ({required Object path}) => 'Cockpit will use this folder from the next launch:\n${path}',
 			'settings.page.storage.restartUseDefaultMessage' => 'Cockpit will use the default system location from the next launch. Your data in the custom folder is left untouched.',
 			'settings.page.storage.restartResetMessage' => 'All Cockpit data was cleared. Restart to start fresh.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.storage.later' => 'Later',
 			'settings.page.storage.quitCockpit' => 'Quit Cockpit',
 			'settings.page.storage.chooseFolderDialogTitle' => 'Choose a folder for Cockpit data',
@@ -6065,8 +6103,6 @@ extension on Translations {
 			'settings.page.terminal.shellTitle' => 'Shell',
 			'settings.page.terminal.shellDesc' => 'Which shell new terminal tabs open. The arrow next to + still opens any other one, just for that tab.',
 			'settings.page.terminal.noWslMessage' => 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.terminal.sectionBehavior' => 'Behavior',
 			'settings.page.terminal.closeOnExitTitle' => 'Close tab when the shell exits',
 			'settings.page.terminal.closeOnExitDesc' => 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.',

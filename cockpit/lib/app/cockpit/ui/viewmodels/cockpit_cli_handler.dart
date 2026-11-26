@@ -385,6 +385,14 @@ class CockpitCliHandler {
         _vm.requestLayoutApply(path);
         return const CockpitCommandResult.ok();
 
+      // `focus-window` — the MAIN window asks a detached workspace window to
+      // come to the front (a click on that workspace in its rail). Not a CLI
+      // verb either; it arrives through the socket of this window's isolated
+      // root (see `RunningInstance.forwardFocus`).
+      case 'focus-window':
+        _vm.bringWindowToFront();
+        return const CockpitCommandResult.ok();
+
       // `cockpit new-tab` — cria uma aba de terminal. A CLI já resolveu o cwd
       // pro absoluto. Ancora no workspace/pane da tab emissora (trazendo o
       // workspace pra frente, mesma regra do `open`); `split` = right|down

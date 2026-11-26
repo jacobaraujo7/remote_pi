@@ -674,6 +674,13 @@ class _Translations$cockpit$cockpitPage$pt_BR extends Translations$cockpit$cockp
 	@override String get closeWorkspaceTitle => 'Fechar workspace';
 	@override String closeWorkspaceMessage({required Object name}) => 'Fechar "${name}"? Os agentes deste workspace serão encerrados. A pasta no disco é mantida.';
 	@override String get closeAction => 'Fechar';
+	@override String get openWindowTitle => 'Abrir em nova janela';
+	@override String openWindowMessage({required Object name}) => 'Os terminais de "${name}" serão fechados aqui e reabertos na nova janela com o histórico. Os processos em execução neles, incluindo agentes, são encerrados.';
+	@override String get openWindowAction => 'Abrir janela';
+	@override String get openWindowFailedTitle => 'Não foi possível abrir a janela';
+	@override String openWindowFailedSeed({required Object detail}) => 'O Cockpit não conseguiu preparar a nova janela. ${detail}';
+	@override String openWindowFailedLaunch({required Object detail}) => 'A nova janela do Cockpit não iniciou. ${detail}';
+	@override String get openWindowUnsupported => 'Este workspace não pode ser aberto em uma janela separada.';
 	@override String get removeWorktreeTitle => 'Remover worktree';
 	@override String removeWorktreeMessage({required Object name, required Object warn}) => 'Remover "${name}"? A pasta da worktree e o branch serão excluídos e os agentes deste fork serão encerrados.${warn}';
 	@override String removeWorktreeWarning({required Object name}) => '\n\nAviso: o branch "${name}" ainda não foi mesclado — removê-lo (git branch -D) descarta o trabalho não mesclado.';
@@ -1232,6 +1239,8 @@ class _Translations$cockpit$projectsRail$pt_BR extends Translations$cockpit$proj
 	@override String get remove => 'Remover';
 	@override String get moveToRealm => 'Mover para realm';
 	@override String get copyWorkspaceId => 'Copiar id do workspace';
+	@override String get openInNewWindow => 'Abrir em nova janela';
+	@override String get openInOtherWindow => 'Aberto em outra janela. Clique para mostrá-la.';
 	@override String get rename => 'Renomear';
 	@override String get close => 'Fechar';
 	@override String get newRealm => 'Novo realm…';
@@ -2532,6 +2541,13 @@ extension on TranslationsPtBr {
 			'cockpit.cockpitPage.closeWorkspaceTitle' => 'Fechar workspace',
 			'cockpit.cockpitPage.closeWorkspaceMessage' => ({required Object name}) => 'Fechar "${name}"? Os agentes deste workspace serão encerrados. A pasta no disco é mantida.',
 			'cockpit.cockpitPage.closeAction' => 'Fechar',
+			'cockpit.cockpitPage.openWindowTitle' => 'Abrir em nova janela',
+			'cockpit.cockpitPage.openWindowMessage' => ({required Object name}) => 'Os terminais de "${name}" serão fechados aqui e reabertos na nova janela com o histórico. Os processos em execução neles, incluindo agentes, são encerrados.',
+			'cockpit.cockpitPage.openWindowAction' => 'Abrir janela',
+			'cockpit.cockpitPage.openWindowFailedTitle' => 'Não foi possível abrir a janela',
+			'cockpit.cockpitPage.openWindowFailedSeed' => ({required Object detail}) => 'O Cockpit não conseguiu preparar a nova janela. ${detail}',
+			'cockpit.cockpitPage.openWindowFailedLaunch' => ({required Object detail}) => 'A nova janela do Cockpit não iniciou. ${detail}',
+			'cockpit.cockpitPage.openWindowUnsupported' => 'Este workspace não pode ser aberto em uma janela separada.',
 			'cockpit.cockpitPage.removeWorktreeTitle' => 'Remover worktree',
 			'cockpit.cockpitPage.removeWorktreeMessage' => ({required Object name, required Object warn}) => 'Remover "${name}"? A pasta da worktree e o branch serão excluídos e os agentes deste fork serão encerrados.${warn}',
 			'cockpit.cockpitPage.removeWorktreeWarning' => ({required Object name}) => '\n\nAviso: o branch "${name}" ainda não foi mesclado — removê-lo (git branch -D) descarta o trabalho não mesclado.',
@@ -2848,6 +2864,8 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.newCardHere' => 'Novo card aqui',
 			'cockpit.kanbanView.duplicateCard' => 'Duplicar',
 			'cockpit.kanbanView.cardLabels' => 'Marcadores',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.deleteCard' => 'Apagar card',
 			'cockpit.kanbanView.advance' => 'Passar pra próxima coluna',
 			'cockpit.kanbanView.advanceHold' => 'Mover para a próxima coluna (segurar: mover para a última)',
@@ -2855,8 +2873,6 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.emptyColumn' => 'Sem cards',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 card', other: '${n} cards', ), 
 			'cockpit.kanbanView.notes' => 'Nota',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.notesPlaceholder' => 'Escreva uma nota',
 			'cockpit.kanbanView.comments' => 'Comentários',
 			'cockpit.kanbanView.addComment' => 'Adicionar comentário',
@@ -2943,6 +2959,8 @@ extension on TranslationsPtBr {
 			'cockpit.projectsRail.remove' => 'Remover',
 			'cockpit.projectsRail.moveToRealm' => 'Mover para realm',
 			'cockpit.projectsRail.copyWorkspaceId' => 'Copiar id do workspace',
+			'cockpit.projectsRail.openInNewWindow' => 'Abrir em nova janela',
+			'cockpit.projectsRail.openInOtherWindow' => 'Aberto em outra janela. Clique para mostrá-la.',
 			'cockpit.projectsRail.rename' => 'Renomear',
 			'cockpit.projectsRail.close' => 'Fechar',
 			'cockpit.projectsRail.newRealm' => 'Novo realm…',
@@ -3360,6 +3378,8 @@ extension on TranslationsPtBr {
 			'settings.page.storage.restartChangeFolderMessage' => ({required Object path}) => 'O Cockpit usará esta pasta a partir da próxima abertura:\n${path}',
 			'settings.page.storage.restartUseDefaultMessage' => 'O Cockpit usará o local padrão do sistema a partir da próxima abertura. Seus dados na pasta personalizada permanecem intactos.',
 			'settings.page.storage.restartResetMessage' => 'Todos os dados do Cockpit foram apagados. Reinicie para começar do zero.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.storage.later' => 'Mais tarde',
 			'settings.page.storage.quitCockpit' => 'Sair do Cockpit',
 			'settings.page.storage.chooseFolderDialogTitle' => 'Escolha uma pasta para os dados do Cockpit',
@@ -3369,8 +3389,6 @@ extension on TranslationsPtBr {
 			'settings.page.terminal.shellTitle' => 'Shell',
 			'settings.page.terminal.shellDesc' => 'Qual shell novas abas de terminal abrem. A seta ao lado do + ainda abre qualquer outro, só para aquela aba.',
 			'settings.page.terminal.noWslMessage' => 'Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.terminal.sectionBehavior' => 'Comportamento',
 			'settings.page.terminal.closeOnExitTitle' => 'Fechar a aba quando o shell encerrar',
 			'settings.page.terminal.closeOnExitDesc' => 'Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.',

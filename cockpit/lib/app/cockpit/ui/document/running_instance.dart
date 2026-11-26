@@ -24,22 +24,26 @@ class RunningInstance {
 
   static String get _suffix => kDebugMode ? '-debug' : '';
 
-  static String? get _cockpitDir {
-    final home = cockpitRuntimeHome();
-    if (home == null) return null;
-    return p.join(home, '.cockpit');
+  /// `<home>/.cockpit`. [home] points at ANOTHER instance (the isolated root
+  /// of a workspace window); when omitted, it is this process's.
+  static String? _cockpitDir([String? home]) {
+    final base = home ?? cockpitRuntimeHome();
+    if (base == null) return null;
+    return p.join(base, '.cockpit');
   }
 
   /// Windows: onde o app anuncia `{port, tok}` do servidor de status. Sem UDS
   /// não há caminho bem conhecido pra "bater na porta", e a porta é efêmera.
-  static String? get statusEndpointFile {
-    final dir = _cockpitDir;
+  static String? get statusEndpointFile => _endpointFileIn();
+
+  static String? _endpointFileIn([String? home]) {
+    final dir = _cockpitDir(home);
     if (dir == null) return null;
     return p.join(dir, 'status$_suffix.json');
   }
 
-  static String? get _socketPath {
-    final dir = _cockpitDir;
+  static String? _socketPath([String? home]) {
+    final dir = _cockpitDir(home);
     if (dir == null) return null;
     return p.join(dir, 'status$_suffix.sock');
   }
@@ -72,7 +76,7 @@ class RunningInstance {
         }
       }
     }
-    final sock = _socketPath;
+    final sock = _socketPath();
     if (!Platform.isWindows && sock != null) env['COCKPIT_STATUS_SOCK'] = sock;
     return env;
   }
@@ -110,13 +114,23 @@ class RunningInstance {
   static Future<bool> forwardApplyLayout(String path) =>
       _send('apply-layout', {'path': path});
 
+  /// Brings to the front the detached workspace window whose isolated root is
+  /// [home] (a click on that workspace in the main window's rail). `false` =
+  /// the window did not answer.
+  static Future<bool> forwardFocus({required String home}) =>
+      _send('focus-window', const {}, home: home);
+
   /// Uma linha JSON no socket da CLI interna, a mesma que o `cockpit` fala.
-  static Future<bool> _send(String cmd, Map<String, Object?> args) async {
+  static Future<bool> _send(
+    String cmd,
+    Map<String, Object?> args, {
+    String? home,
+  }) async {
     Socket socket;
     String? token;
     try {
       if (Platform.isWindows) {
-        final file = statusEndpointFile;
+        final file = _endpointFileIn(home);
         if (file == null || !File(file).existsSync()) return false;
         final decoded = jsonDecode(File(file).readAsStringSync());
         if (decoded is! Map) return false;
@@ -129,7 +143,7 @@ class RunningInstance {
           timeout: const Duration(seconds: 2),
         );
       } else {
-        final path = _socketPath;
+        final path = _socketPath(home);
         if (path == null || !File(path).existsSync()) return false;
         socket = await Socket.connect(
           InternetAddress(path, type: InternetAddressType.unix),

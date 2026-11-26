@@ -96,8 +96,22 @@ class ProjectsRail extends StatefulWidget {
     required this.onSelectRemote,
     required this.remoteGitInfoOf,
     required this.onRemoteWorkspaceAction,
+    this.isInOtherWindow = _never,
+    this.canOpenInNewWindow = _never,
+    this.onOpenInNewWindow,
     this.width = 252,
   });
+
+  static bool _never(String _) => false;
+
+  /// Workspace currently open in another Cockpit window: the card gets the
+  /// window glyph and a click brings that window to the front (see the VM).
+  final bool Function(String projectId) isInOtherWindow;
+
+  /// Whether "Open in new window" is available for the workspace (main window
+  /// only, local root workspace). A `null` [onOpenInNewWindow] hides the item.
+  final bool Function(String projectId) canOpenInNewWindow;
+  final ValueChanged<Project>? onOpenInNewWindow;
 
   /// Largura do painel (arrastável pela página — não persistida).
   final double width;
@@ -354,6 +368,12 @@ class _ProjectsRailState extends State<ProjectsRail> {
             onSwitchBranch: (r) => widget.onSwitchBranch(project, r),
             moveTargetsOf: () => widget.moveTargetsOf(id),
             onMoveToRealm: (realmId) => widget.onMoveToRealm(id, realmId),
+            inOtherWindow: widget.isInOtherWindow(id),
+            onOpenInNewWindow:
+                widget.onOpenInNewWindow != null &&
+                    widget.canOpenInNewWindow(id)
+                ? () => widget.onOpenInNewWindow!(project)
+                : null,
           ),
         ),
         // Worktrees (forks) penduradas abaixo do workspace, expandidas/
@@ -1061,10 +1081,18 @@ class _ProjectItem extends StatelessWidget {
     required this.onSwitchBranch,
     required this.moveTargetsOf,
     required this.onMoveToRealm,
+    this.inOtherWindow = false,
+    this.onOpenInNewWindow,
   });
 
   final Project project;
   final bool selected;
+
+  /// Open in another Cockpit window (glyph + tooltip on the card).
+  final bool inOtherWindow;
+
+  /// "Open in new window" in the menu; `null` hides the item.
+  final VoidCallback? onOpenInNewWindow;
   final int notifications;
   final GitInfo? git;
 
@@ -1122,6 +1150,7 @@ class _ProjectItem extends StatelessWidget {
       onSwitchBranch: onSwitchBranch,
       moveTargetsOf: moveTargetsOf,
       onMoveToRealm: onMoveToRealm,
+      onOpenInNewWindow: onOpenInNewWindow,
     );
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
@@ -1182,6 +1211,17 @@ class _ProjectItem extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 6),
+                  if (inOtherWindow) ...[
+                    AppTooltip(
+                      message: context.t.cockpit.projectsRail.openInOtherWindow,
+                      child: Icon(
+                        Icons.open_in_new,
+                        size: 14,
+                        color: colors.text3,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                   if (notifications > 0) ...[
                     _AbsorbCardTap(
                       child: Container(
@@ -1817,7 +1857,11 @@ class _WorkspaceMenu {
     required this.onSwitchBranch,
     required this.moveTargetsOf,
     required this.onMoveToRealm,
+    this.onOpenInNewWindow,
   });
+
+  /// "Open in new window"; `null` hides the item.
+  final VoidCallback? onOpenInNewWindow;
 
   /// Id do workspace (`projectId`) — copiável pra usar na CLI `cockpit`
   /// (`--workspace-id` / filtros de `list-panes`).
@@ -1915,6 +1959,12 @@ class _WorkspaceMenu {
             context.t.cockpit.projectsRail.copyBranch,
             Icons.content_copy,
           ),
+        if (onOpenInNewWindow != null)
+          AppMenuItem(
+            value: 'new-window',
+            label: context.t.cockpit.projectsRail.openInNewWindow,
+            icon: Icons.open_in_new,
+          ),
         AppMenuItem(
           value: 'config',
           label: context.t.cockpit.projectsRail.settings,
@@ -1960,6 +2010,7 @@ class _WorkspaceMenu {
         operation: 'projects_rail',
       );
     }
+    if (pick == 'new-window') onOpenInNewWindow?.call();
     if (pick == 'config') onConfigure();
     if (pick == 'delete') onDelete();
   }

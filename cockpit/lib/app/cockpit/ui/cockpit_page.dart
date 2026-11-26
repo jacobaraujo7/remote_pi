@@ -992,6 +992,10 @@ class _RailPanel extends StatelessWidget {
           remoteGitInfoOf: vm.remoteGitInfoOf,
           onRemoteWorkspaceAction: (wsId, action) =>
               handleRemoteWorkspaceAction(context, wsId, action),
+          isInOtherWindow: vm.isInOtherWindow,
+          canOpenInNewWindow: vm.canOpenWorkspaceWindow,
+          onOpenInNewWindow: (project) =>
+              unawaited(openWorkspaceInNewWindow(context, project)),
         ),
         // Alça de arraste na borda VOLTADA PARA O CENTRO: borda direita quando o
         // painel está à esquerda, e vice-versa com "Inverter panes" — do outro

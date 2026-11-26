@@ -19,6 +19,7 @@ class MainFlutterWindow: NSWindow {
     RegisterGeneratedPlugins(registry: flutterViewController)
 
     registerNativeDialogs(flutterViewController)
+    registerAppActivation(flutterViewController)
 
     // Arquivos abertos pelo Finder chegam pelo AppDelegate → este canal.
     OpenFilesChannel.shared.register(flutterViewController)
@@ -31,6 +32,35 @@ class MainFlutterWindow: NSWindow {
     }
 
     super.awakeFromNib()
+  }
+
+  /// Channel that activates ANOTHER Cockpit instance by pid: a detached
+  /// workspace window is a second process (see `WorkspaceWindowService` on the
+  /// Dart side). Since macOS 14 activation is cooperative: a background app
+  /// cannot bring itself to the front, the active app has to yield. So the
+  /// main window, which just received the click, yields activation and
+  /// activates the other one.
+  private func registerAppActivation(_ controller: FlutterViewController) {
+    let channel = FlutterMethodChannel(
+      name: "cockpit/app_activation",
+      binaryMessenger: controller.engine.binaryMessenger
+    )
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "activate",
+        let args = call.arguments as? [String: Any],
+        let pid = args["pid"] as? Int,
+        let app = NSRunningApplication(processIdentifier: pid_t(pid))
+      else {
+        result(false)
+        return
+      }
+      if #available(macOS 14.0, *) {
+        NSApp.yieldActivation(to: app)
+        result(app.activate(options: []))
+      } else {
+        result(app.activate(options: [.activateIgnoringOtherApps]))
+      }
+    }
   }
 
   /// Canal nativo pro seletor de PASTA. Existe porque o `file_picker` (em
