@@ -62,7 +62,7 @@ if (Test-Path \$f) { Get-Content -Raw \$f } else { '' }
   /// "porta aceitando conexão". Ainda assim confirmamos a porta: um arquivo
   /// sobrevivente de um ciclo anterior apontaria pra porta morta.
   @override
-  Future<RemoteEndpoint?> awaitEndpoint() async {
+  Future<RemoteEndpoint?> awaitEndpoint({bool tcp = false}) async {
     for (var attempt = 0; attempt < 12; attempt++) {
       await Future<void>.delayed(Duration(milliseconds: 200 + attempt * 100));
       final endpoint = await readEndpoint();
@@ -169,7 +169,7 @@ if (Test-Path "\$bundle\\lib") { Copy-Item "\$bundle\\lib\\*" "\$root\\lib" -For
   ///   porque o `cockpit_pty.dll` é copiado AO LADO do exe e esse é o segundo
   ///   candidato do `openPtyDylib`.
   @override
-  Future<void> startServer({required int idleSeconds}) async {
+  Future<void> startServer({required int idleSeconds, bool tcp = false}) async {
     final (code, out, err) = await _ps('''
 \$exe  = "$serverBinaryPath"
 \$sock = "$_endpointFile"

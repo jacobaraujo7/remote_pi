@@ -10,6 +10,8 @@ import 'package:cockpit_protocol/cockpit_protocol.dart';
 import 'package:cockpit_server/cockpit_server.dart';
 import 'package:test/test.dart';
 
+const _tcp = LocalEndpointTransport.tcp;
+
 void main() {
   late Directory dir;
   late String path;
@@ -17,10 +19,8 @@ void main() {
   setUp(() {
     dir = Directory.systemTemp.createTempSync('cockpit-cli-forward');
     path = '${dir.path}/s.sock';
-    LocalEndpoint.debugForceTcp = true;
   });
   tearDown(() {
-    LocalEndpoint.debugForceTcp = null;
     dir.deleteSync(recursive: true);
   });
 
@@ -28,7 +28,7 @@ void main() {
     'comando da CLI vai ao cliente e a resposta volta pro chamador',
     () async {
       final server = _server();
-      await server.bind(path);
+      await server.bind(path, transport: _tcp);
       addTearDown(server.close);
 
       // Cliente que se comporta como o Cockpit: responde ao `cli.cmd`.
@@ -57,7 +57,7 @@ void main() {
 
   test('erro do cliente volta como {ok:false} com o detalhe', () async {
     final server = _server();
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
 
     final client = await _connectClient(path);
@@ -84,7 +84,7 @@ void main() {
 
   test('sem cliente conectado, a CLI recebe erro em vez de pendurar', () async {
     final server = _server();
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
 
     final reply = await _sendCliCommand(server, {
@@ -97,7 +97,7 @@ void main() {
 
   test('status de turno segue funcionando no mesmo socket', () async {
     final server = _server();
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
 
     final client = await _connectClient(path);
@@ -118,7 +118,7 @@ void main() {
     // Desktop e iPad ligados ao mesmo host: responder pelo último que conectou
     // devolvia as abas do dispositivo errado.
     final server = _server();
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
 
     final dono = await _connectClient(path);
@@ -147,7 +147,7 @@ void main() {
 
   test('aba órfã com vários clientes explica em vez de chutar', () async {
     final server = _server();
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
 
     final a = await _connectClient(path);
@@ -171,7 +171,7 @@ void main() {
     // Aba aberta antes deste servidor (processo reiniciado): com um cliente só
     // não há ambiguidade, então segue funcionando.
     final server = _server();
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
 
     final client = await _connectClient(path);
@@ -192,7 +192,7 @@ void main() {
     'origin routes to its owning client even when the target belongs to another client',
     () async {
       final server = _server();
-      await server.bind(path);
+      await server.bind(path, transport: _tcp);
       addTearDown(server.close);
       final origin = await _connectClient(path);
       final destination = await _connectClient(path);
@@ -233,7 +233,7 @@ void main() {
     'stale or malformed origin never falls back to a single connected client',
     () async {
       final server = _server();
-      await server.bind(path);
+      await server.bind(path, transport: _tcp);
       addTearDown(server.close);
       final client = await _connectClient(path);
       await _claimTab(client, 'target');
@@ -293,14 +293,17 @@ Future<Map<String, Object?>> _sendCliCommand(
 }
 
 Future<Socket> _connectStatus(RemoteServer server) async {
-  final endpoint = await LocalEndpoint.connect(server.statusSocketPath!);
+  final endpoint = await LocalEndpoint.connect(
+    server.statusSocketPath!,
+    transport: _tcp,
+  );
   addTearDown(endpoint.socket.destroy);
   return endpoint.socket;
 }
 
 /// Conecta como cliente Cockpit (handshake completo) e devolve a conexão.
 Future<_TestClient> _connectClient(String path) async {
-  final endpoint = await LocalEndpoint.connect(path);
+  final endpoint = await LocalEndpoint.connect(path, transport: _tcp);
   final socket = endpoint.socket;
   addTearDown(socket.destroy);
   final messages = StreamController<RemoteMessage>.broadcast();

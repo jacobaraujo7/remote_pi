@@ -21,40 +21,81 @@ import 'dart:math';
 /// permissões do `~/.cockpit`. Ele viaja no `Hello` (campo `tok`) e o servidor
 /// recusa o handshake sem ele. Mesma solução do status-server do app
 /// (`TerminalStatusServerImpl`), que enfrentou este mesmo limite do `dart:io`.
+///
+/// O transporte também pode ser escolhido explicitamente, sem depender da
+/// plataforma: é o `--tcp` do `cockpit-server`, usado por hosts cujo SSH não
+/// faz forward de socket UNIX (Tailscale SSH).
+enum LocalEndpointTransport { unixSocket, tcp }
+
 class LocalEndpoint {
-  /// O transporte desta plataforma usa TCP + token em vez de socket UNIX.
-  static bool get usesTcp => debugForceTcp ?? Platform.isWindows;
+  /// Transporte default desta plataforma.
+  static LocalEndpointTransport get platformTransport => Platform.isWindows
+      ? LocalEndpointTransport.tcp
+      : LocalEndpointTransport.unixSocket;
 
-  /// Força (ou proíbe) o caminho TCP independentemente da plataforma. Existe
-  /// só para os testes: o caminho do Windows é o que quebrava, e sem isto ele
-  /// não teria como ser exercitado numa máquina POSIX.
-  static bool? debugForceTcp;
-
-  /// Escuta em [path] e devolve o listener (+ token, no Windows).
-  static Future<LocalListener> bind(String path) async {
+  /// Escuta em [path] e devolve o listener (+ token, no transporte TCP).
+  ///
+  /// [transport] sem valor usa [platformTransport]. O servidor remoto passa
+  /// TCP explicitamente quando o host não consegue encaminhar socket UNIX.
+  static Future<LocalListener> bind(
+    String path, {
+    LocalEndpointTransport? transport,
+  }) async {
+    final mode = transport ?? platformTransport;
     final file = File(path);
     await file.parent.create(recursive: true);
     // Resquício do ciclo anterior: no POSIX o bind falha se o inode existe; no
     // Windows um arquivo velho apontaria pra uma porta morta.
     if (file.existsSync()) file.deleteSync();
 
-    if (!usesTcp) {
+    if (mode == LocalEndpointTransport.unixSocket) {
       final listener = await ServerSocket.bind(
         InternetAddress(path, type: InternetAddressType.unix),
         0,
       );
-      return LocalListener._(listener, path, null, boundAt: _modifiedAt(path));
+      return LocalListener._(
+        listener,
+        path,
+        null,
+        transport: mode,
+        boundAt: _modifiedAt(path),
+      );
     }
 
     final listener = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final token = _randomToken();
     // Escrita do arquivo é o ÚLTIMO passo: quem o encontra sabe que a porta
     // já aceita conexão (o conector adota servidor existente sem retry).
-    await file.writeAsString(
-      jsonEncode({'v': 1, 'port': listener.port, 'token': token}),
-      flush: true,
+    // O token é um segredo: o temporário nasce vazio, recebe 0600 e SÓ ENTÃO
+    // o JSON é escrito. O rename atômico publica o anúncio já completo — sem
+    // janela de arquivo vazio e sem token legível por outra conta local (o
+    // socket UNIX não tinha esse problema).
+    final temp = File(
+      '$path.tmp-$pid-${DateTime.now().microsecondsSinceEpoch}',
     );
-    return LocalListener._(listener, path, token, boundAt: _modifiedAt(path));
+    try {
+      await temp.create();
+      await _restrictToOwner(temp.path);
+      await temp.writeAsString(
+        jsonEncode({'v': 1, 'port': listener.port, 'token': token}),
+        flush: true,
+      );
+      await temp.rename(path);
+    } on Object {
+      try {
+        if (temp.existsSync()) temp.deleteSync();
+      } on FileSystemException {
+        // melhor esforço: o erro original é o que importa.
+      }
+      rethrow;
+    }
+    return LocalListener._(
+      listener,
+      path,
+      token,
+      transport: mode,
+      boundAt: _modifiedAt(path),
+    );
   }
 
   static DateTime? _modifiedAt(String path) {
@@ -68,8 +109,12 @@ class LocalEndpoint {
   /// Conecta ao servidor que escuta em [path]. Lança se não há ninguém lá
   /// (arquivo ausente/ilegível, porta recusando) — o chamador trata como
   /// "servidor não existe".
-  static Future<LocalSocket> connect(String path) async {
-    if (!usesTcp) {
+  static Future<LocalSocket> connect(
+    String path, {
+    LocalEndpointTransport? transport,
+  }) async {
+    final mode = transport ?? platformTransport;
+    if (mode == LocalEndpointTransport.unixSocket) {
       final socket = await Socket.connect(
         InternetAddress(path, type: InternetAddressType.unix),
         0,
@@ -93,6 +138,27 @@ class LocalEndpoint {
   /// alguém atende é o [connect].
   static bool announcedAt(String path) => File(path).existsSync();
 
+  /// O arquivo de rendezvous é um segredo (porta + token): só o dono pode ler.
+  ///
+  /// `dart:io` não expõe o modo POSIX na criação, então o arquivo é criado
+  /// vazio, restringido e só depois recebe o JSON. Falhar aqui é fail-closed:
+  /// sem 0600 não há token em disco.
+  static Future<void> _restrictToOwner(String path) async {
+    if (Platform.isWindows) return;
+    for (final command in const ['/bin/chmod', 'chmod']) {
+      try {
+        final result = await Process.run(command, ['600', path]);
+        if (result.exitCode == 0) return;
+      } on ProcessException {
+        // Tenta o próximo caminho; se nenhum existir, cai no throw abaixo.
+      }
+    }
+    throw FileSystemException(
+      'could not restrict rendezvous permissions to 0600',
+      path,
+    );
+  }
+
   static String _randomToken() {
     final rng = Random.secure();
     return List<int>.generate(
@@ -104,7 +170,13 @@ class LocalEndpoint {
 
 /// Listener aberto por [LocalEndpoint.bind].
 class LocalListener {
-  LocalListener._(this.listener, this.path, this.token, {this.boundAt});
+  LocalListener._(
+    this.listener,
+    this.path,
+    this.token, {
+    required this.transport,
+    this.boundAt,
+  });
 
   /// Quando o anúncio foi criado — a impressão digital do POSIX (um bind novo
   /// por cima cria inode novo, com mtime novo).
@@ -143,6 +215,9 @@ class LocalListener {
 
   /// Caminho anunciado (socket UNIX no POSIX; arquivo de rendezvous no Windows).
   final String path;
+
+  /// Transporte efetivamente usado pelo listener.
+  final LocalEndpointTransport transport;
 
   /// Token exigido no `Hello`, ou `null` quando o transporte é socket UNIX.
   final String? token;

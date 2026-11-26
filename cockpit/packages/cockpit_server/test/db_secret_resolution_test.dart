@@ -10,6 +10,8 @@ import 'package:cockpit_protocol/cockpit_protocol.dart';
 import 'package:cockpit_server/cockpit_server.dart';
 import 'package:test/test.dart';
 
+const _tcp = LocalEndpointTransport.tcp;
+
 void main() {
   late Directory dir;
   late String path;
@@ -21,10 +23,8 @@ void main() {
     path = '${dir.path}/s.sock';
     secrets = DbSecretStore(path: '${dir.path}/db-secrets.json');
     db = _SpyDb();
-    LocalEndpoint.debugForceTcp = true;
   });
   tearDown(() {
-    LocalEndpoint.debugForceTcp = null;
     dir.deleteSync(recursive: true);
   });
 
@@ -36,7 +36,7 @@ void main() {
       db,
       dbSecrets: secrets,
     );
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
     return _connectClient(path);
   }
@@ -140,7 +140,7 @@ void main() {
       dbSecrets: secrets,
       dbTunnel: tunnel,
     );
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
     final client = await _connectClient(path);
 
@@ -177,7 +177,7 @@ void main() {
       dbSecrets: secrets,
       dbTunnel: tunnel,
     );
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
     final client = await _connectClient(path);
 
@@ -274,7 +274,7 @@ class _SpyDb implements DbService {
 }
 
 Future<_TestClient> _connectClient(String path) async {
-  final endpoint = await LocalEndpoint.connect(path);
+  final endpoint = await LocalEndpoint.connect(path, transport: _tcp);
   final socket = endpoint.socket;
   addTearDown(socket.destroy);
   final messages = StreamController<RemoteMessage>.broadcast();

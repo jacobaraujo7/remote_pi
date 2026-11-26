@@ -153,10 +153,14 @@ class RemoteServer {
     }
   }
 
-  Future<void> bind(String socketPath) async {
+  Future<void> bind(
+    String socketPath, {
+    LocalEndpointTransport? transport,
+  }) async {
     // Transporte por plataforma (UDS no POSIX, TCP loopback + token no
-    // Windows, onde o dart:io não tem socket UNIX). Ver [LocalEndpoint].
-    final endpoint = await LocalEndpoint.bind(socketPath);
+    // Windows, onde o dart:io não tem socket UNIX), ou explícito quando o
+    // host precisa do fallback TCP. Ver [LocalEndpoint].
+    final endpoint = await LocalEndpoint.bind(socketPath, transport: transport);
     _endpoint = endpoint;
     _listener = endpoint.listener;
     _listener!.listen(_accept);
@@ -167,7 +171,7 @@ class RemoteServer {
       onCommand: _forwardCommandToClient,
     );
     try {
-      await _statusReceiver!.bind('$socketPath.status');
+      await _statusReceiver!.bind('$socketPath.status', transport: transport);
     } catch (_) {
       _statusReceiver = null;
     }
@@ -1054,8 +1058,8 @@ class TurnStatusReceiver {
     };
   }
 
-  Future<void> bind(String path) async {
-    final endpoint = await LocalEndpoint.bind(path);
+  Future<void> bind(String path, {LocalEndpointTransport? transport}) async {
+    final endpoint = await LocalEndpoint.bind(path, transport: transport);
     _endpoint = endpoint;
     socketPath = path;
     endpoint.listener.listen(_accept);

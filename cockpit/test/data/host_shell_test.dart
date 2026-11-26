@@ -302,7 +302,7 @@ void main() {
     });
   });
 
-  group('PosixHostShell (comportamento preservado)', () {
+  group('PosixHostShell', () {
     PosixHostShell shellWith(_FakeExec exec) =>
         PosixHostShell(probe: _posixProbe, exec: exec.call);
 
@@ -316,9 +316,63 @@ void main() {
         '/Users/jacob/.cockpit/cockpit-server.sock',
       );
       // A ausência de servidor segue sendo descoberta pelo túnel, como antes
-      // do plano 61 — é o que preserva a latência de abertura.
+      // do fallback TCP — o caminho comum POSIX não paga round-trip novo.
       expect(exec.commands, isEmpty);
     });
+
+    test('readTcpEndpoint devolve porta e token do rendezvous TCP', () async {
+      final exec = _FakeExec(
+        (_) => [(0, '{"v":1,"port":4242,"token":"tok-xyz"}', '')],
+      );
+      final endpoint = await shellWith(exec).readTcpEndpoint();
+
+      expect(endpoint, isA<TcpEndpoint>());
+      expect((endpoint! as TcpEndpoint).port, 4242);
+      expect(endpoint.token, 'tok-xyz');
+    });
+
+    test('readTcpEndpoint devolve null sem servidor', () async {
+      final exec = _FakeExec((_) => [(0, '', '')]);
+      expect(await shellWith(exec).readTcpEndpoint(), isNull);
+    });
+
+    test(
+      'readTcpEndpoint tolera JSON pela metade (escrita em curso)',
+      () async {
+        final exec = _FakeExec((_) => [(0, '{"v":1,"por', '')]);
+        expect(await shellWith(exec).readTcpEndpoint(), isNull);
+      },
+    );
+
+    test('awaitEndpoint default espera o socket UNIX com test -S', () async {
+      final exec = _FakeExec((_) => [(0, 'up', '')]);
+      final endpoint = await shellWith(exec).awaitEndpoint();
+
+      expect(endpoint, isA<UnixSocketEndpoint>());
+      // O teste tem que casar com o comando REAL: `test -S` dentro do `if` e
+      // `echo up` no ramo positivo.
+      expect(exec.commands.single, contains('test -S'));
+      expect(exec.commands.single, contains('echo up'));
+    });
+
+    test(
+      'awaitEndpoint(tcp: true) devolve o rendezvous quando aparece',
+      () async {
+        // Primeiras sondagens vazias; o rendezvous chega depois.
+        var calls = 0;
+        final exec = _FakeExec((_) {
+          calls++;
+          return calls < 3
+              ? [(0, '', '')]
+              : [(0, '{"v":1,"port":99,"token":"t"}', '')];
+        });
+        final endpoint = await shellWith(exec).awaitEndpoint(tcp: true);
+
+        expect(endpoint, isA<TcpEndpoint>());
+        expect((endpoint! as TcpEndpoint).port, 99);
+        expect(endpoint.token, 't');
+      },
+    );
 
     test('startServer segue no nohup, com log de arranque', () async {
       final exec = _FakeExec((_) => [(0, 'started', '')]);
@@ -329,6 +383,16 @@ void main() {
       expect(command, contains('libcockpit_pty.dylib'));
       expect(command, contains('--exit-on-idle 120'));
       expect(command, contains('server-boot.log'));
+      // Default POSIX é socket UNIX. `--tcp` só entra no fallback explícito.
+      expect(command, isNot(contains('--tcp')));
+    });
+
+    test('startServer(tcp: true) pede o rendezvous TCP', () async {
+      final exec = _FakeExec((_) => [(0, 'started', '')]);
+      await shellWith(exec).startServer(idleSeconds: 120, tcp: true);
+
+      expect(exec.commands.single, contains('--tcp'));
+      expect(exec.commands.single, contains('--socket'));
     });
 
     test('startServer no Linux pede a .so', () async {

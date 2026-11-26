@@ -52,6 +52,10 @@ PY
   /// Caminho do socket, com o `$HOME` deixado para o shell do host expandir.
   static const _socketPath = r'$HOME/.cockpit/cockpit-server.sock';
 
+  /// O mesmo caminho, já resolvido a partir da home do probe — é o que vai no
+  /// [UnixSocketEndpoint] (o cliente resolve local, sem SSH extra).
+  String get _unixPath => '${probe.home}/.cockpit/cockpit-server.sock';
+
   @override
   bool get installsFromHostBundle => false;
 
@@ -59,17 +63,51 @@ PY
   ///
   /// "Não há servidor" NÃO é decidido aqui: quem descobre é o túnel, que falha
   /// ao conectar e leva ao bootstrap. É assim desde o plano 58, e manter
-  /// preserva a latência de abertura do caminho POSIX.
+  /// preserva a latência de abertura do caminho POSIX. O rendezvous TCP só é
+  /// lido quando o host já exigiu esse transporte (ver [readTcpEndpoint]).
   @override
-  Future<RemoteEndpoint?> readEndpoint() async =>
-      UnixSocketEndpoint('${probe.home}/.cockpit/cockpit-server.sock');
+  Future<RemoteEndpoint?> readEndpoint() async => UnixSocketEndpoint(_unixPath);
+
+  /// Anúncio do servidor subido com `--tcp`: um arquivo comum no MESMO caminho
+  /// do socket (ver `LocalEndpoint`). Só um comando, e só no caminho de
+  /// fallback — hosts com forward UNIX continuam sem SSH extra.
+  @override
+  Future<RemoteEndpoint?> readTcpEndpoint() async {
+    final (code, out, _) = await exec(
+      'if [ -f $_socketPath ]; then cat $_socketPath; fi',
+    );
+    if (code != 0) return null;
+    return _parseTcpEndpoint(out);
+  }
+
+  static TcpEndpoint? _parseTcpEndpoint(String out) {
+    final raw = out.trim();
+    if (raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final port = decoded['port'];
+      if (port is! int) return null;
+      return TcpEndpoint(port: port, token: decoded['token'] as String?);
+    } on FormatException {
+      // Arquivo pela metade (servidor escrevendo agora) — o poll tenta de novo.
+      return null;
+    }
+  }
 
   @override
-  Future<RemoteEndpoint?> awaitEndpoint() async {
-    // O socket UNIX aparece quando o servidor faz bind. `test -S` é o sinal
-    // exato: arquivo comum com o mesmo nome não serviria.
+  Future<RemoteEndpoint?> awaitEndpoint({bool tcp = false}) async {
+    // O anúncio aparece quando o servidor faz bind: socket UNIX no modo
+    // clássico; rendezvous por ÚLTIMO, já com a porta aceitando conexão. Um
+    // JSON pela metade volta `null` de [readTcpEndpoint] e o poll tenta de
+    // novo. No modo UNIX, `test -S` é o sinal exato.
     for (var attempt = 0; attempt < 10; attempt++) {
       await Future<void>.delayed(Duration(milliseconds: 150 + attempt * 100));
+      if (tcp) {
+        final endpoint = await readTcpEndpoint();
+        if (endpoint != null) return endpoint;
+        continue;
+      }
       final (code, out, _) = await exec(
         'test -S $_socketPath && echo up || echo down',
       );
@@ -311,7 +349,7 @@ fi
   Future<bool> installFromHost() async => false;
 
   @override
-  Future<void> startServer({required int idleSeconds}) async {
+  Future<void> startServer({required int idleSeconds, bool tcp = false}) async {
     final ptyLib = probe.os == 'darwin'
         ? 'libcockpit_pty.dylib'
         : 'libcockpit_pty.so';
@@ -323,6 +361,9 @@ fi
       'COCKPIT_PTY_DYLIB=\$HOME/.cockpit/server/lib/$ptyLib '
       'nohup $serverBinaryPath '
       '--socket $_socketPath '
+      // Só no fallback: binários velhos ignoram a flag e seguem no UDS, e
+      // hosts com forward UNIX não pagam o custo de trocar de transporte.
+      '${tcp ? '--tcp ' : ''}'
       '--exit-on-idle $idleSeconds '
       '--idle-keeps-sessions '
       '>$bootLogPath 2>&1 & echo started',

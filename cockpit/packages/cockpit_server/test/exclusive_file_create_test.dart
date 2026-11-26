@@ -8,6 +8,8 @@ import 'package:cockpit_remote/cockpit_remote.dart';
 import 'package:cockpit_server/cockpit_server.dart';
 import 'package:test/test.dart';
 
+const _tcp = LocalEndpointTransport.tcp;
+
 class _Unused implements TerminalService, FileService, GitService, DbService {
   @override
   Future<void> dispose() async {}
@@ -29,19 +31,20 @@ void main() {
   late Directory temporary;
   setUp(() async {
     temporary = await Directory.systemTemp.createTemp('cockpit-remote-create-');
-    LocalEndpoint.debugForceTcp = true;
   });
   tearDown(() async {
-    LocalEndpoint.debugForceTcp = null;
     await temporary.delete(recursive: true);
   });
   Future<RemoteFileService> connect(FileService files) async {
     final unused = _Unused();
     final server = RemoteServer(unused, files, unused, unused);
     final path = '${temporary.path}/server.sock';
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
-    final connection = await RemoteConnection.connect(path);
+    final connection = await RemoteConnection.connect(
+      path,
+      transport: _tcp,
+    );
     addTearDown(connection.close);
     return RemoteFileService(connection);
   }
@@ -57,15 +60,21 @@ void main() {
         unused,
       );
       final path = '${temporary.path}/hooks.sock';
-      await server.bind(path);
+      await server.bind(path, transport: _tcp);
       addTearDown(server.close);
-      final connection = await RemoteConnection.connect(path);
+      final connection = await RemoteConnection.connect(
+        path,
+        transport: _tcp,
+      );
       addTearDown(connection.close);
       final received = RemoteTerminalService(
         connection,
       ).turnStatus.take(2).toList();
       Future<void> send(Map<String, Object?> payload) async {
-        final endpoint = await LocalEndpoint.connect(server.statusSocketPath!);
+        final endpoint = await LocalEndpoint.connect(
+          server.statusSocketPath!,
+          transport: _tcp,
+        );
         endpoint.socket.write(
           '${jsonEncode({...payload, 'tok': server.statusToken})}\n',
         );

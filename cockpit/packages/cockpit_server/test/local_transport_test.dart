@@ -1,7 +1,7 @@
 // Transporte local do servidor. No Windows não existe socket UNIX no dart:io,
 // então o servidor escuta em TCP de loopback — que qualquer processo da máquina
-// alcança, daí o token no handshake. Estes testes forçam o caminho TCP para
-// exercitá-lo fora do Windows.
+// alcança, daí o token no handshake. Estes testes pedem o transporte TCP
+// explicitamente para exercitá-lo fora do Windows.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -11,6 +11,8 @@ import 'package:cockpit_protocol/cockpit_protocol.dart';
 import 'package:cockpit_server/cockpit_server.dart';
 import 'package:test/test.dart';
 
+const _tcp = LocalEndpointTransport.tcp;
+
 void main() {
   late Directory dir;
   late String path;
@@ -18,16 +20,14 @@ void main() {
   setUp(() {
     dir = Directory.systemTemp.createTempSync('cockpit-transport');
     path = '${dir.path}/cockpit-server.sock';
-    LocalEndpoint.debugForceTcp = true;
   });
   tearDown(() {
-    LocalEndpoint.debugForceTcp = null;
     dir.deleteSync(recursive: true);
   });
 
   test('handshake com o token do anúncio é aceito', () async {
     final server = _server();
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
 
     final reply = await _handshake(path, withToken: true);
@@ -36,7 +36,7 @@ void main() {
 
   test('handshake sem token é recusado', () async {
     final server = _server();
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
 
     final reply = await _handshake(path, withToken: false);
@@ -47,7 +47,7 @@ void main() {
   test('cliente local mantém o env de status que mandou', () async {
     final terminals = _FakeTerminals();
     final server = _server(terminals);
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
 
     await _openPty(path, local: true);
@@ -59,7 +59,7 @@ void main() {
   test('cliente remoto tem o env de status trocado pelo do servidor', () async {
     final terminals = _FakeTerminals();
     final server = _server(terminals);
-    await server.bind(path);
+    await server.bind(path, transport: _tcp);
     addTearDown(server.close);
 
     await _openPty(path, local: false);
@@ -83,7 +83,7 @@ Future<RemoteMessage> _handshake(
   bool local = false,
   Socket? reuse,
 }) async {
-  final endpoint = await LocalEndpoint.connect(path);
+  final endpoint = await LocalEndpoint.connect(path, transport: _tcp);
   final socket = endpoint.socket;
   final first = _messages(socket).first;
   socket.add(
@@ -105,7 +105,7 @@ Future<RemoteMessage> _handshake(
 
 /// Handshake + PtyOpen numa conexão só; resolve quando o servidor responde.
 Future<void> _openPty(String path, {required bool local}) async {
-  final endpoint = await LocalEndpoint.connect(path);
+  final endpoint = await LocalEndpoint.connect(path, transport: _tcp);
   final socket = endpoint.socket;
   addTearDown(socket.destroy);
   final replies = StreamController<RemoteMessage>.broadcast();
