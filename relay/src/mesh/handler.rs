@@ -8,7 +8,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use super::store::{MeshStore, StoreError};
 use super::types::{GetQuery, GetResponse, MeshEnvelopeWire, PostResponse};
@@ -110,17 +110,33 @@ pub async fn get_mesh(
     Query(q): Query<GetQuery>,
 ) -> Result<Response, MeshHttpError> {
     let hash = url_hash.to_lowercase();
+    // Diagnostics for "why doesn't this PC see the others": a client that never
+    // asks here can never build a sibling topology, and the 404 / 304 paths were
+    // previously invisible. The hash is a public identifier — it is in the URL
+    // path — never key material or message content, and this is `debug`.
+    let hash_short = &hash[..hash.len().min(12)];
     let rec = match store.get(&hash) {
         Ok(Some(r)) => r,
-        Ok(None) => return Err(MeshHttpError::NotFound),
+        Ok(None) => {
+            debug!(hash = %hash_short, since = ?q.since, "mesh get: no such owner");
+            return Err(MeshHttpError::NotFound);
+        }
         Err(e) => return Err(MeshHttpError::Internal(e.to_string())),
     };
 
     if let Some(since) = q.since
         && rec.version <= since
     {
+        debug!(hash = %hash_short, version = rec.version, since, "mesh get: not modified");
         return Ok(StatusCode::NOT_MODIFIED.into_response());
     }
+
+    debug!(
+        hash = %hash_short,
+        version = rec.version,
+        members_bytes = rec.blob.len(),
+        "mesh get: served"
+    );
 
     let body = GetResponse {
         blob: B64.encode(&rec.blob),
