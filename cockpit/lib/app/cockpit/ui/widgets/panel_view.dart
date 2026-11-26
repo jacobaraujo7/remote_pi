@@ -9,6 +9,7 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/panel_document.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/webview_chrome.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/preview_edit_button.dart';
 
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/unzoomed_native_view.dart';
@@ -45,12 +46,22 @@ class PanelWebViews {
 }
 
 class PanelView extends StatefulWidget {
-  const PanelView({super.key, required this.session, required this.onCall});
+  const PanelView({
+    super.key,
+    required this.session,
+    required this.onCall,
+    this.onEditSource,
+    this.editSourceLabel,
+  });
 
   final FileViewerSession session;
 
   /// Executa `cockpit <line>` com cwd [cwd] e devolve o mapa que a página vê.
   final Future<Map<String, Object?>> Function(String line, String cwd) onCall;
+
+  /// Abre o HTML do painel no editor configurado. Ausente na janela solta.
+  final VoidCallback? onEditSource;
+  final String? editSourceLabel;
 
   @override
   State<PanelView> createState() => _PanelViewState();
@@ -303,12 +314,18 @@ class _PanelViewState extends State<PanelView> {
   Widget build(BuildContext context) {
     final tr = context.t.cockpit.panelView;
     if (!_inline) {
-      return _Unavailable(
-        message: tr.unavailable,
-        openInBrowser: tr.openInBrowser,
-        openAsHtml: tr.openAsHtml,
-        path: widget.session.path,
-        onOpenAsHtml: widget.session.toggleRawSource,
+      return _withEditFooter(
+        context,
+        _Unavailable(
+          message: tr.unavailable,
+          openInBrowser: tr.openInBrowser,
+          openAsHtml: tr.openAsHtml,
+          path: widget.session.path,
+          onOpenAsHtml: widget.onEditSource == null
+              ? widget.session.toggleRawSource
+              : null,
+        ),
+        tr.openAsHtml,
       );
     }
     final bridge = _bridge;
@@ -333,7 +350,7 @@ class _PanelViewState extends State<PanelView> {
     final initialUrlRequest = Platform.isWindows
         ? URLRequest(url: WebUri(_baseUrl))
         : null;
-    return WebViewCover(
+    final preview = WebViewCover(
       loaded: _loaded,
       child: WebViewEnvironmentGate(
         builder: (context, environment) => UnzoomedNativeView(
@@ -397,6 +414,31 @@ class _PanelViewState extends State<PanelView> {
         ),
       ),
     );
+    return _withEditFooter(context, preview, tr.openAsHtml);
+  }
+
+  Widget _withEditFooter(
+    BuildContext context,
+    Widget preview,
+    String fallbackLabel,
+  ) {
+    final onEditSource = widget.onEditSource;
+    if (onEditSource == null) return preview;
+    return Column(
+      children: [
+        Expanded(child: preview),
+        Container(
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          color: context.colors.bg,
+          alignment: Alignment.centerRight,
+          child: PreviewEditButton(
+            onPressed: onEditSource,
+            label: widget.editSourceLabel ?? fallbackLabel,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -414,10 +456,11 @@ class _Unavailable extends StatelessWidget {
   final String openInBrowser;
   final String openAsHtml;
   final String path;
-  final VoidCallback onOpenAsHtml;
+  final VoidCallback? onOpenAsHtml;
 
   @override
   Widget build(BuildContext context) {
+    final openAsHtml = onOpenAsHtml;
     return ColoredBox(
       color: context.colors.panel,
       child: Center(
@@ -440,11 +483,13 @@ class _Unavailable extends StatelessWidget {
                         unawaited(launcher.launchUrl(Uri.file(path))),
                     child: Text(openInBrowser),
                   ),
-                  const SizedBox(width: 8),
-                  OutlineButton(
-                    onPressed: onOpenAsHtml,
-                    child: Text(openAsHtml),
-                  ),
+                  if (openAsHtml != null) ...[
+                    const SizedBox(width: 8),
+                    OutlineButton(
+                      onPressed: openAsHtml,
+                      child: Text(this.openAsHtml),
+                    ),
+                  ],
                 ],
               ),
             ],

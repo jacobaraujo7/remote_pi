@@ -51,6 +51,11 @@ abstract class GitCommandRunner {
   /// comando que falhar.
   GitRun syncPullPush(String repoPath);
 
+  /// `git clone --progress <url> <targetPath>` (fluxo "Clonar repositório" do
+  /// "+" da rail). Aceita URL SSH ou HTTPS. Sem terminal pra perguntar nada:
+  /// credencial que faltar vira erro no stream, nunca um processo pendurado.
+  GitRun clone(String url, String targetPath);
+
   /// Mergeia [worktreeBranch] no checkout do pai em [parentPath].
   ///
   /// 1. Se o worktree em [worktreePath] tem mudanças não commitadas → devolve

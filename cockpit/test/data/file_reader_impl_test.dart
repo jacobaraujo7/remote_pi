@@ -8,6 +8,39 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const reader = FileReaderImpl();
 
+  test(
+    'Board Markdown reopens above the ordinary text limit and rejects oversized saves before overwrite',
+    () async {
+      final dir = await Directory.systemTemp.createTemp('canvas_size');
+      addTearDown(() => dir.delete(recursive: true));
+      final path = '${dir.path}/large.BOARD';
+      final source = '# Canvas Board\n' + 'á' * (1024 * 1024);
+      expect(await reader.write(path, source), isTrue);
+      final view = await reader.read(path) as FileViewText;
+      expect(view.language, 'markdown');
+      expect(view.text, source);
+      expect(
+        FileReaderImpl.fromBytes('large.txt', utf8.encode(source)),
+        isA<FileViewUnsupported>(),
+      );
+      expect(await reader.write(path, 'á' * (4 * 1024 * 1024 + 1)), isFalse);
+      expect(await File(path).readAsString(), source);
+    },
+  );
+  test('ORC source uses JSON highlighting without changing its content', () {
+    const source = '{"version":1,"boxes":[],"links":[]}';
+    for (final extension in ['orc', 'ORC', 'orchestration']) {
+      final view = FileReaderImpl.fromBytes(
+        'agents.$extension',
+        utf8.encode(source),
+      );
+      expect(view, isA<FileViewText>());
+      final text = view as FileViewText;
+      expect(text.language, 'json');
+      expect(text.text, source);
+    }
+  });
+
   group('FileReaderImpl — detecção de A/V (plano 46)', () {
     test('vídeo → FileViewVideo (só o caminho, sem tocar o disco)', () async {
       const exts = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', 'wmv', 'flv'];

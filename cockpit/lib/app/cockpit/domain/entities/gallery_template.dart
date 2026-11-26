@@ -1,3 +1,6 @@
+import 'orchestration_document.dart';
+import 'board_document.dart';
+
 /// Um "documento especial" do Cockpit que a aba Gallery sabe criar na raiz do
 /// workspace: extensão própria + conteúdo inicial que já abre na tab certa
 /// (`.dbq` → editor SQL, `.kanban` → quadro, `.ckp` → layout, `.http` →
@@ -5,11 +8,23 @@
 /// Tasks, `.env.cockpit` → variáveis injetadas nos terminais do workspace).
 /// Título/descrição são i18n na UI; aqui só o que é dado.
 enum GalleryTemplate {
+  orchestration(
+    baseName: 'agents',
+    extension: 'orc',
+    iconAsset: 'assets/file_icons/cockpit-panel.svg',
+    content: '{"version":1,"boxes":[],"links":[]}\n',
+  ),
   dbQuery(
     baseName: 'query',
     extension: 'dbq',
     iconAsset: 'assets/file_icons/database.svg',
     content: '-- limit: 100\nSELECT 1;\n',
+  ),
+  board(
+    baseName: 'diagram',
+    extension: 'canvas',
+    iconAsset: 'assets/file_icons/excalidraw.svg',
+    content: '',
   ),
   kanban(
     baseName: 'board',
@@ -226,7 +241,7 @@ enum GalleryTemplate {
     required this.baseName,
     required this.extension,
     required this.iconAsset,
-    required this.content,
+    required this._content,
     this.relativeDir = '',
     this.fixedName = false,
     this.opensParent = false,
@@ -253,7 +268,17 @@ enum GalleryTemplate {
   final String iconAsset;
 
   /// Conteúdo inicial do arquivo.
-  final String content;
+  final String _content;
+  String get content {
+    if (this == GalleryTemplate.board) {
+      return BoardDocument([], id: BoardDocument.newId()).encode();
+    }
+    if (this != GalleryTemplate.orchestration) return _content;
+    var id = 0;
+    return OrchestrationDocument.defaultTerminals(
+      newId: () => 'terminal-${++id}',
+    ).encode();
+  }
 
   /// `.env.cockpit` tem `baseName` vazio: o nome é só o "ponto + extensão".
   String get fileName =>

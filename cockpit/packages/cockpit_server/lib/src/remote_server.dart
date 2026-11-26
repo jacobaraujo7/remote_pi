@@ -7,11 +7,16 @@ import 'package:meta/meta.dart';
 import 'package:cockpit_core/cockpit_core.dart';
 import 'package:cockpit_protocol/cockpit_protocol.dart';
 
+import 'host_process_metrics.dart';
 import 'pty_output_coalescer.dart';
 
 class _RpcUnknown implements Exception {
   const _RpcUnknown(this.method);
   final String method;
+}
+
+class _RpcSessionNotFound implements Exception {
+  const _RpcSessionNotFound();
 }
 
 /// Falha tipada de um RPC sem exceção de domínio própria (`proc.run`):
@@ -203,7 +208,11 @@ class RemoteServer {
     // O comando vai para o cliente DONO da aba. Dois clientes no mesmo host
     // (desktop e iPad) compartilham este servidor, e responder pelo último que
     // conectou fazia o comando de um agente cair no outro dispositivo.
-    final tabId = (request['tabId'] ?? '').toString();
+    final caller = request['callerTabId'];
+    if (caller != null && (caller is! String || caller.isEmpty)) {
+      return <String, Object?>{'ok': false, 'error': 'invalid callerTabId'};
+    }
+    final tabId = (caller ?? request['tabId'] ?? '').toString();
     _Connection? connection;
     if (tabId.isNotEmpty) {
       for (final c in _connections) {
@@ -217,7 +226,8 @@ class RemoteServer {
     // veio de fora de uma aba). Com um cliente só, ele é a resposta óbvia;
     // com vários, chutar erraria de dispositivo — melhor dizer o que houve.
     if (connection == null) {
-      if (_connections.length > 1) {
+      // A known origin cannot be rerouted to a different client's selection.
+      if (caller != null || _connections.length > 1) {
         return <String, Object?>{
           'ok': false,
           'error': tabId.isEmpty
@@ -807,6 +817,16 @@ class _Connection {
             ),
           ),
         },
+        'fs.create' => () async {
+          final files = _files;
+          if (files is! ExclusiveFileCreator) throw _RpcUnknown(req.method);
+          return {
+            'created': await (files as ExclusiveFileCreator).createNew(
+              p['path'] as String,
+              base64Decode(p['b64'] as String),
+            ),
+          };
+        }(),
         'fs.write' => () async {
           await _files.write(
             p['path'] as String,
@@ -815,6 +835,15 @@ class _Connection {
           return null;
         }(),
         'fs.home' => {'home': await _files.home()},
+        'process.metrics' => () async {
+          final id = p['session'] as String;
+          final sessions = await _terminals.sessions();
+          final matches = sessions.where((session) => session.id == id);
+          if (matches.isEmpty || matches.first.exitCode != null) {
+            throw const _RpcSessionNotFound();
+          }
+          return readHostProcessMetrics(matches.first.pid);
+        }(),
         'git.status' => (await _git.status(p['repo'] as String)).toJson(),
         'git.diff' => {
           'diff': await _git.diff(
@@ -956,6 +985,8 @@ class _Connection {
           detail: e.method,
         ),
       );
+    } on _RpcSessionNotFound {
+      _send(RpcResponse(rid: req.rid, ok: false, code: 'session_not_found'));
     } catch (e) {
       _send(
         RpcResponse(rid: req.rid, ok: false, code: 'internal', detail: '$e'),
@@ -1070,6 +1101,27 @@ class TurnStatusReceiver {
       return;
     }
     final paneId = json['paneId'];
+    if (json['type'] == 'metric') {
+      final tokens = json['ct'], window = json['cw'];
+      if (paneId is! String ||
+          paneId.isEmpty ||
+          tokens is! int ||
+          tokens < 0 ||
+          window is! int ||
+          window <= 0)
+        return;
+      onStatus(
+        TurnStatus(
+          paneId: paneId,
+          status: 'metric',
+          harness: 'claude',
+          sid: json['sid'] is String ? json['sid'] as String : null,
+          contextTokens: tokens,
+          contextWindow: window,
+        ),
+      );
+      return;
+    }
     final status = json['st'];
     if (paneId is! String || status is! String) return;
     onStatus(
@@ -1080,6 +1132,11 @@ class TurnStatusReceiver {
         sid: json['sid'] as String?,
         transcriptPath: json['tx'] as String?,
         harness: json['hn'] as String?,
+        subagentId: json['aid'] as String?,
+        subagentType: json['at'] as String?,
+        eventEpochMs: json['ts'] as int?,
+        graphRecipient: json['gm'] is String ? json['gm'] as String : null,
+        graphSelfName: json['gi'] is String ? json['gi'] as String : null,
       ),
     );
   }

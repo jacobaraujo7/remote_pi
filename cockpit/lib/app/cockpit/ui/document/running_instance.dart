@@ -25,7 +25,7 @@ class RunningInstance {
   static String get _suffix => kDebugMode ? '-debug' : '';
 
   static String? get _cockpitDir {
-    final home = remotePiHome();
+    final home = cockpitRuntimeHome();
     if (home == null) return null;
     return p.join(home, '.cockpit');
   }
@@ -57,6 +57,20 @@ class RunningInstance {
       final existing = Platform.environment['PATH'] ?? '';
       final sep = Platform.isWindows ? ';' : ':';
       env['PATH'] = existing.isEmpty ? bin : '$bin$sep$existing';
+    }
+    if (Platform.isWindows && cockpitIsolatedRoot() != null) {
+      final endpoint = statusEndpointFile;
+      if (endpoint != null) {
+        try {
+          final data = jsonDecode(File(endpoint).readAsStringSync());
+          if (data is Map && data['port'] is int && data['tok'] is String) {
+            env['COCKPIT_STATUS_PORT'] = '${data['port']}';
+            env['COCKPIT_STATUS_TOKEN'] = data['tok'] as String;
+          }
+        } on Object {
+          /* no isolated endpoint yet; do not use the live one */
+        }
+      }
     }
     final sock = _socketPath;
     if (!Platform.isWindows && sock != null) env['COCKPIT_STATUS_SOCK'] = sock;

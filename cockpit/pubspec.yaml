@@ -16,7 +16,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 2.1.18+116
+version: 2.1.28+126
 
 environment:
   sdk: ^3.12.0
@@ -90,6 +90,7 @@ dependencies:
   flutter_modular: ^7.1.0
 
   # Plano 37 — seleção de pasta (NSOpenPanel no macOS) para abrir um projeto.
+  xml: ^7.0.1
   file_picker: ^8.1.2
 
   # Plano 51 — senha de conexão no cofre nativo do SO (Keychain / Credential
@@ -107,7 +108,11 @@ dependencies:
   path: ^1.9.0
 
   # Wave 2 — fontes da identidade visual (Space Grotesk / Hanken Grotesk /
-  # JetBrains Mono), servidas em runtime + cacheadas pelo google_fonts.
+  # JetBrains Mono). Os .ttf vêm EMPACOTADOS em assets/google_fonts/ (o
+  # google_fonts procura `<Family>-<Weight>.ttf` no AssetManifest antes de
+  # qualquer rede) e `allowRuntimeFetching` fica desligado no main: sem isso o
+  # primeiro boot offline/atrás de proxy morria tentando baixar de
+  # fonts.gstatic.com (issue #61).
   google_fonts: ^6.2.1
 
   # Wave 2 — renderiza o Markdown (GFM + code) da resposta do agente.
@@ -180,6 +185,7 @@ dependencies:
   # processo (core/utils/child_process_lifetime.dart). O `win32` saiu junto com
   # o named pipe do supervisor; quem ainda precisa dele é o cockpit_keepawake.
   ffi: ^2.1.0
+  quickjs_engine: ^0.1.7
 
   # Aviso de atualização in-app (plano 43, passo 7): versão atual do app
   # (package_info_plus) + abrir a URL do artefato no navegador (url_launcher).
@@ -206,7 +212,7 @@ dependencies:
   # (#4), loader via asset-id (#6), build universal macOS corrigido (0.1.3 —
   # cada arch escreve no próprio outputDirectory, sem colisão no lipo).
   anaki_orm: ^0.1.1
-  anaki_sqlite: ^0.1.6
+  anaki_sqlite: ^0.1.7
   # Postgres 0.1.5 / MySQL 0.1.7: credenciais deixaram de ir por URL montada com
   # `format!` (agora Pg/MySqlConnectOptions programático). A URL crua quebrava
   # com senha contendo `? / #` — o sqlx reportava "invalid port number" — e
@@ -214,17 +220,17 @@ dependencies:
   # Postgres 0.1.9 / MySQL 0.1.10: relink dos dylibs darwin com SDK 26. As
   # 0.1.8/0.1.9 saíram linkadas com o ld do Xcode 27 e o dyld recusava
   # ("mis-aligned LINKEDIT string pool") — Postgres/MySQL mortos na 2.1.5.
-  anaki_postgres: ^0.1.9
-  anaki_mysql: ^0.1.10
-  anaki_mssql: ^0.1.7
+  anaki_postgres: ^0.1.10
+  anaki_mysql: ^0.1.11
+  anaki_mssql: ^0.1.8
   # NoSQL/cache — acesso APENAS via CLI por enquanto (sem UI); ver plano 51.
-  anaki_redis: ^0.1.5
+  anaki_redis: ^0.1.6
   # 0.1.5: feature `socks5-proxy` do crate mongodb habilitada (plano 54) — é o
   # que faz `proxyHost`/`proxyPort` valerem. Sem ela o driver recusa a opção, e
   # Mongo atrás de bastion (replica set / Atlas SRV) não tem caminho: o driver
   # descobre os membros pelo `hello` e disca os hostnames anunciados, furando
   # qualquer port-forward.
-  anaki_mongodb: ^0.1.8
+  anaki_mongodb: ^0.1.9
 
   # Plano 54 — túnel SSH opcional por conexão de banco. Dart puro de propósito
   # (decisão C): o binário `ssh` só *provavelmente* existe no Windows (Feature
@@ -243,6 +249,7 @@ dependencies:
   sqlite3: ^3.6.0
   sqlite3_flutter_libs: ^0.6.0+eol
   vm_service: ^15.3.0
+  pdf: ^3.13.1
 
 dev_dependencies:
   flutter_test:
@@ -268,13 +275,14 @@ dev_dependencies:
   # `dart run flutter_launcher_icons`.
   flutter_launcher_icons: ^0.14.4
 
-# Ícone do app mobile (plano 60, Wave E). Fonte = o ícone real do desktop; o
-# mesmo símbolo, gerado nos tamanhos de iOS/Android. `remove_alpha_ios` porque
+# Ícone do app mobile (plano 60, Wave E). Fonte = a arte de canto a canto (o
+# iOS e o Android aplicam a própria máscara). O ícone do macOS sai dela já no
+# formato da Apple, via `tool/macos_app_icon.py`. `remove_alpha_ios` porque
 # a App Store rejeita ícone com canal alfa.
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png"
+  image_path: "assets/branding/png/cockpit-icon-square-1024.png"
   remove_alpha_ios: true
 
 # For information on the generic Dart part of this file, see the
@@ -290,6 +298,8 @@ flutter:
   # Ícones de arquivo/pasta por extensão (material-icon-theme, MIT). O mapa
   # arquivo->ícone é gerado em lib/ui/core/file_icons/file_icon_map.g.dart.
   assets:
+    # Fontes da identidade visual, pré-baixadas (ver google_fonts em deps).
+    - assets/google_fonts/
     - assets/file_icons/
     - assets/db_icons/
     - assets/harness_icons/
@@ -393,6 +403,13 @@ dependency_overrides:
   # montada mas o renderer nao recebe frames; ao reabrir, sync + layout
   # completo. Dylib nativa identica a 2026-10 (patch so Dart).
   #
+  # Tag cockpit-pin-flterm-upstream-2026-10e (d63161d): + PR #6 do fork
+  # (cfbraun): compression sem busy-spin, geometria de IME so durante composicao
+  # ativa (ganho de CPU) e Ctrl+Tab / Ctrl+Shift+Tab ignorados pelo terminal
+  # (ficam pro app, pre-requisito do cycle de abas). Inclui os fixes pos-merge
+  # da suite do flterm (scheduler no post-frame, testes de IME/autoscroll).
+  # Dylib nativa identica a 2026-10 (patch so Dart).
+  #
   # ATENCAO CI: ao trocar esta ref muda o ghostty.version; o cache de native
   # asset (.dart_tool/hooks_runner, build/native_assets) precisa ser invalidado,
   # senao a dylib velha crasha o processo (exit -10) ao carregar os bindings novos.
@@ -402,20 +419,17 @@ dependency_overrides:
   flterm:
     git:
       url: https://github.com/jacobaraujo7/libghostty.git
-      ref: cockpit-pin-flterm-upstream-2026-10d
+      ref: cockpit-pin-flterm-upstream-2026-10e
       path: packages/flterm
   libghostty:
     git:
       url: https://github.com/jacobaraujo7/libghostty.git
-      ref: cockpit-pin-flterm-upstream-2026-10d
+      ref: cockpit-pin-flterm-upstream-2026-10e
       path: packages/libghostty
-  # Hover no WebView2 (Windows): o plugin 0.6.0 reenvia só MOVE ao
-  # CompositionController, nunca LEAVE, e um method call por pixel. Fork pinado
-  # em TAG (regra acima) com Leave no onExit + coalescência por frame + guard do
-  # null deref no callHandler (plano 70). Remover quando o upstream publicar
-  # (PR aberto a partir da branch cockpit/windows-hover do fork).
+  # A tag inclui as correções de hover e libera o compositor WebView2 ao
+  # fechar o último gerenciador (jacobaraujo7/flutter_inappwebview#1).
   flutter_inappwebview_windows:
     git:
-      url: https://github.com/jacobaraujo7/flutter_inappwebview.git
-      ref: cockpit-windows-hover-1
+      url: https://github.com/moregola/flutter_inappwebview.git
+      ref: cockpit-windows-compositor-1
       path: flutter_inappwebview_windows

@@ -44,12 +44,20 @@ class TelemetryCliHandler {
   Future<CockpitCommandResult> handle(
     CockpitCommand c,
     Project? project,
-    String root,
-  ) async {
+    String root, {
+    String? terminalOwnerId,
+    bool Function()? originAvailable,
+  }) async {
+    if (originAvailable?.call() == false) {
+      return const CockpitCommandResult.fail(
+        'Originating orchestration is unavailable',
+      );
+    }
     final a = c.args;
     if (project == null &&
         const {
           'telemetry-open',
+          'telemetry-ingest',
           'telemetry-close',
           'telemetry-probes',
         }.contains(c.cmd)) {
@@ -63,8 +71,10 @@ class TelemetryCliHandler {
         final s = await _ingest.openWrapperRun(
           cwd: _s(a['cwd']) ?? root,
           command: _s(a['command']) ?? '',
+          workspaceId: project!.id,
+          ownerId: terminalOwnerId,
           name: _s(a['name']),
-          paneId: c.tabId,
+          paneId: c.callerTabId ?? c.tabId,
           pid: _i(a['pid']),
         );
         if (s == null) {
@@ -72,13 +82,19 @@ class TelemetryCliHandler {
             'no_workspace: cwd is not inside an open workspace',
           );
         }
+        if (originAvailable?.call() == false) {
+          await s.close();
+          return const CockpitCommandResult.fail(
+            'Originating orchestration is unavailable',
+          );
+        }
         return CockpitCommandResult.ok({
           'run': s.runId,
           'env': s.childEnvironment,
         });
       case 'telemetry-ingest':
-        final s = _ingest.session(_s(a['run']) ?? '');
-        if (s == null) {
+        final s = _ingest.session(_s(a['run']) ?? '', workspaceId: project!.id);
+        if (s == null || s.ownerId != terminalOwnerId) {
           return const CockpitCommandResult.fail(
             'no_run: unknown or closed run',
           );
@@ -104,14 +120,14 @@ class TelemetryCliHandler {
         }
         return const CockpitCommandResult.ok();
       case 'telemetry-close':
-        final s = _ingest.session(_s(a['run']) ?? '');
-        if (s == null) {
+        final s = _ingest.session(_s(a['run']) ?? '', workspaceId: project!.id);
+        if (s == null || s.ownerId != terminalOwnerId) {
           return const CockpitCommandResult.fail(
             'no_run: unknown or closed run',
           );
         }
         await s.close(exitCode: _i(a['exit_code']));
-        final store = await _stores.forWorkspace(project!.id);
+        final store = await _stores.forWorkspace(project.id);
         final cases = await store.cases(
           TelemetryQuery(runId: s.runId, limit: 500),
         );

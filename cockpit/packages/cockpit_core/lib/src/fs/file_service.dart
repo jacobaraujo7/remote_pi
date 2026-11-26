@@ -52,3 +52,9 @@ abstract interface class FileService {
   /// melhor que `/`). Vazio se o host não expõe HOME.
   Future<String> home();
 }
+
+/// Optional creation capability. Existing FileService implementations and write
+/// behavior remain unchanged. False means an existing path was left untouched.
+abstract interface class ExclusiveFileCreator {
+  Future<bool> createNew(String path, Uint8List bytes);
+}

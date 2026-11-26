@@ -16,8 +16,8 @@
 //! socket); o hook herda os dois. Sessões de agente fora do Cockpit não têm
 //! essas envs, então o hook é no-op (gate natural).
 //!
-//! **Nunca escreve no stdout** (participa do protocolo de hook) e **nunca falha
-//! barulhento**: qualquer erro é engolido pra não atrapalhar o turno.
+//! Writes `{}` only for Codex SubagentStop, whose hook contract requires JSON
+//! on stdout. All other lifecycle events keep stdout untouched.
 
 use std::io::{Read, Write};
 
@@ -27,8 +27,74 @@ use crate::util::env_non_empty;
 
 /// Executa o hook. Sempre retorna sem erro visível.
 pub fn run(args: &[String]) -> ! {
-    let _ = try_run(harness_from(args));
+    let harness = harness_from(args);
+    let mut raw = String::new();
+    let _ = std::io::stdin().read_to_string(&mut raw);
+    let decoded = serde_json::from_str::<Value>(&raw).ok();
+    if let Some(ref event) = decoded {
+        let _ = try_run(&harness, event);
+        if harness == "codex" && str_field(event, "hook_event_name") == "SubagentStop" {
+            println!("{{}}");
+        }
+    }
     std::process::exit(0)
+}
+
+/// Claude Code's status-line JSON contains the actual context window size and
+/// current token counts. Keep its stdout human-readable while reporting the
+/// structured values to the Cockpit socket. This command is installed only
+/// when the user has no custom status line configured.
+pub fn run_statusline() -> ! {
+    let _ = try_statusline();
+    std::process::exit(0)
+}
+
+fn try_statusline() -> Option<()> {
+    let mut raw = String::new();
+    std::io::stdin().read_to_string(&mut raw).ok()?;
+    let decoded: Value = serde_json::from_str(&raw).ok()?;
+    let context = decoded.get("context_window")?;
+    let input = context.get("total_input_tokens").and_then(Value::as_u64);
+    let window = context.get("context_window_size").and_then(Value::as_u64);
+    let percent = context.get("used_percentage").and_then(Value::as_f64);
+    let model = decoded
+        .pointer("/model/display_name")
+        .and_then(Value::as_str)
+        .unwrap_or("Claude");
+    if let Some(pct) = percent {
+        println!("{model} · {pct:.0}% context");
+    } else {
+        println!("{model}");
+    }
+    let pane_id = env_non_empty("COCKPIT_PANE_ID")?;
+    // Claude's used_percentage is input-only; total_input_tokens already
+    // includes cache reads and writes in the live context window.
+    let used = input?;
+    let payload = json!({
+        "type": "metric",
+        "paneId": pane_id,
+        "ct": used,
+        "cw": window,
+        "sid": str_field(&decoded, "session_id"),
+        "hn": "claude",
+        "tok": env_non_empty("COCKPIT_STATUS_TOKEN"),
+    });
+    send_statusline_payload(payload)
+}
+
+fn send_statusline_payload(payload: Value) -> Option<()> {
+    let mut line = payload.to_string();
+    line.push('\n');
+    #[cfg(unix)]
+    if let Some(path) = env_non_empty("COCKPIT_STATUS_SOCK") {
+        let mut socket = std::os::unix::net::UnixStream::connect(path).ok()?;
+        socket.write_all(line.as_bytes()).ok()?;
+        return Some(());
+    }
+    let port = env_non_empty("COCKPIT_STATUS_PORT")?.parse::<u16>().ok()?;
+    let mut socket = std::net::TcpStream::connect(("127.0.0.1", port)).ok()?;
+    socket.write_all(line.as_bytes()).ok()?;
+    Some(())
 }
 
 /// Lê `--harness <nome>` dos argumentos. Default `claude`: entries instalados
@@ -51,7 +117,7 @@ fn harness_from(args: &[String]) -> String {
     "claude".to_string()
 }
 
-fn try_run(harness: String) -> Option<()> {
+fn try_run(harness: &str, decoded: &Value) -> Option<()> {
     let pane_id = env_non_empty("COCKPIT_PANE_ID")?; // não é sessão do Cockpit
     let sock = env_non_empty("COCKPIT_STATUS_SOCK");
     let port = env_non_empty("COCKPIT_STATUS_PORT").and_then(|p| p.parse::<u16>().ok());
@@ -59,18 +125,15 @@ fn try_run(harness: String) -> Option<()> {
         return None;
     }
 
-    let mut raw = String::new();
-    std::io::stdin().read_to_string(&mut raw).ok()?;
-    if raw.trim().is_empty() {
-        return None;
-    }
-    let decoded: Value = serde_json::from_str(&raw).ok()?;
     if !decoded.is_object() {
         return None;
     }
 
-    let event = str_field(&decoded, "hook_event_name");
-    let status = status_for(&event, &decoded)?; // evento que não nos interessa
+    let event = str_field(decoded, "hook_event_name");
+    let status = wire_status_for(&event, decoded)?;
+    if status.starts_with("subagent_") && str_field(decoded, "agent_id").is_empty() {
+        return None;
+    }
 
     let mut payload = json!({
         "paneId": pane_id,
@@ -81,17 +144,44 @@ fn try_run(harness: String) -> Option<()> {
         // evitando o spinner eterno. Cada hook é um processo separado abrindo
         // seu próprio socket, sem ordem garantida entre eles.
         "ev": event,
-        "sid": str_field(&decoded, "session_id"),
-        "tx": str_field(&decoded, "transcript_path"),
+        "sid": str_field(decoded, "session_id"),
+        "tx": str_field(decoded, "transcript_path"),
         // Quem emitiu o evento. O app precisa disso pra retomar a sessão com o
         // comando certo (`claude --resume <id>` vs `codex resume <id>`) — o
         // session-id sozinho não diz de quem é.
         "hn": harness,
+        "aid": str_field(decoded, "agent_id"),
+        "at": str_field(decoded, "agent_type"),
     });
+    if harness == "claude" && event == "PostToolUse" {
+        match str_field(decoded, "tool_name").as_str() {
+            "SendMessage" => {
+                let recipient = decoded
+                    .pointer("/tool_input/recipient")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .trim();
+                if !recipient.is_empty() && recipient.len() <= 128 {
+                    payload["gm"] = json!(recipient);
+                }
+            }
+            "ListAgents" => {
+                if let Some(name) = claude_self_name(decoded.get("tool_response")) {
+                    payload["gi"] = json!(name);
+                }
+            }
+            _ => {}
+        }
+    }
+    if status.starts_with("subagent_") {
+        if let Ok(elapsed) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            payload["ts"] = json!(elapsed.as_millis());
+        }
+    }
     // Só o Codex manda `turn_id`. Transportamos quando existe: identifica o
     // turno sem depender da ordem de chegada dos hooks (o `ev` continua sendo
     // o que o app consome hoje).
-    let turn = str_field(&decoded, "turn_id");
+    let turn = str_field(decoded, "turn_id");
     if !turn.is_empty() {
         payload["tid"] = json!(turn);
     }
@@ -118,6 +208,33 @@ fn try_run(harness: String) -> Option<()> {
     s.write_all(line.as_bytes()).ok()?;
     let _ = s.flush();
     Some(())
+}
+
+/// ListAgents identifies the current Claude session in its first line. Only
+/// forward that short address; never put the list or message body on the wire.
+fn claude_self_name(response: Option<&Value>) -> Option<String> {
+    let response = response?;
+    let text = match response {
+        Value::String(value) => value.clone(),
+        other => other.to_string(),
+    };
+    let suffix = text.split("This session is ").nth(1)?;
+    let name = suffix
+        .split_whitespace()
+        .next()?
+        .trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_');
+    if name.is_empty() || name.len() > 128 {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+fn wire_status_for(event: &str, decoded: &Value) -> Option<&'static str> {
+    match event {
+        "SubagentStart" => Some("subagent_start"),
+        "SubagentStop" => Some("subagent_stop"),
+        _ => status_for(event, decoded),
+    }
 }
 
 /// Campo string do JSON do hook, com `""` quando ausente (igual ao Dart, que
@@ -192,6 +309,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn claude_list_agents_extracts_only_own_address() {
+        let response =
+            json!("This session is planner-42 [active]\n\nOther sessions:\n  backend-17");
+        assert_eq!(
+            claude_self_name(Some(&response)).as_deref(),
+            Some("planner-42")
+        );
+        assert_eq!(
+            claude_self_name(Some(&json!("Other sessions: backend-17"))),
+            None
+        );
+    }
+
+    #[test]
     fn eventos_de_trabalho() {
         assert_eq!(status_for("UserPromptSubmit", &json!({})), Some("working"));
         assert_eq!(status_for("PostToolUse", &json!({})), Some("working"));
@@ -248,6 +379,20 @@ mod tests {
                 "{ev} não deve mover a aba"
             );
         }
+    }
+
+    #[test]
+    fn subagentes_têm_eventos_de_grafo_sem_mover_turno_principal() {
+        assert_eq!(
+            wire_status_for("SubagentStart", &json!({})),
+            Some("subagent_start")
+        );
+        assert_eq!(
+            wire_status_for("SubagentStop", &json!({})),
+            Some("subagent_stop")
+        );
+        assert_eq!(status_for("SubagentStart", &json!({})), None);
+        assert_eq!(status_for("SubagentStop", &json!({})), None);
     }
 
     #[test]

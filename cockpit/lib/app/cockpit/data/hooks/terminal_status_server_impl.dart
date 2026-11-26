@@ -18,7 +18,13 @@ import 'package:flutter/foundation.dart';
 /// Cada conexão do `cockpit-hook` manda **uma linha JSON** (`{paneId, st, sid,
 /// tx, tok?}`) e fecha.
 class TerminalStatusServerImpl implements TerminalStatusServer {
-  TerminalStatusServerImpl();
+  TerminalStatusServerImpl({this.configurationDirectory});
+
+  // An explicit directory permits isolated app profiles and transport tests.
+  final String? configurationDirectory;
+  String get _statusDirectory =>
+      configurationDirectory ??
+      '${cockpitRuntimeHome() ?? Directory.systemTemp.path}/.cockpit';
 
   ServerSocket? _server;
   void Function(ClaudeStatusUpdate update)? _onUpdate;
@@ -26,7 +32,6 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
   String? _token; // só no Windows/TCP
 
   String get _socketPath {
-    final home = remotePiHome() ?? Directory.systemTemp.path;
     // Namespaceado por debug/release: um Cockpit de dev (`flutter run`) e um de
     // produção rodam lado a lado, mas `~/.cockpit/` é o HOME real (não é isolado
     // por bundle id como o Hive). Sem o sufixo, ambos disputam o MESMO
@@ -36,7 +41,7 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
     // `COCKPIT_STATUS_SOCK` injetado carrega o path certo, e hook/CLI só leem do
     // env, então basta variar aqui.
     final suffix = kDebugMode ? '-debug' : '';
-    return '$home/.cockpit/status$suffix.sock';
+    return '$_statusDirectory/status$suffix.sock';
   }
 
   @override
@@ -93,9 +98,8 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
   /// `RunningInstance`) e a CLI rodada de fora. É o equivalente do caminho bem
   /// conhecido do socket Unix; o token continua exigido no wire.
   String get _endpointFilePath {
-    final home = remotePiHome() ?? Directory.systemTemp.path;
     final suffix = kDebugMode ? '-debug' : '';
-    return '$home/.cockpit/status$suffix.json';
+    return '$_statusDirectory/status$suffix.json';
   }
 
   Future<void> _writeEndpointFile() async {
@@ -190,6 +194,29 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
         );
       }
       if (isCmd) return await _dispatchCommand(decoded);
+      if (decoded['type'] == 'metric') {
+        final paneId = (decoded['paneId'] ?? '').toString();
+        final tokens = decoded['ct'];
+        final window = decoded['cw'];
+        if (paneId.isEmpty ||
+            tokens is! int ||
+            tokens < 0 ||
+            window is! int ||
+            window <= 0) {
+          return (null, null);
+        }
+        _onUpdate?.call(
+          ClaudeStatusUpdate(
+            paneId: paneId,
+            status: 'metric',
+            sessionId: (decoded['sid'] ?? '').toString(),
+            harness: 'claude',
+            contextTokens: tokens,
+            contextWindow: window,
+          ),
+        );
+        return (null, null);
+      }
       // Caminho de status (default / `type` ausente): fire-and-forget.
       final paneId = (decoded['paneId'] ?? '').toString();
       final status = (decoded['st'] ?? '').toString();
@@ -206,6 +233,21 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
           sessionId: sid.isEmpty ? null : sid,
           transcriptPath: tx.isEmpty ? null : tx,
           harness: hn.isEmpty ? null : hn,
+          subagentId: decoded['aid'] is String
+              ? decoded['aid'] as String
+              : null,
+          subagentType: decoded['at'] is String
+              ? decoded['at'] as String
+              : null,
+          graphRecipient: decoded['gm'] is String
+              ? decoded['gm'] as String
+              : null,
+          graphSelfName: decoded['gi'] is String
+              ? decoded['gi'] as String
+              : null,
+          eventAt: decoded['ts'] is int
+              ? DateTime.fromMillisecondsSinceEpoch(decoded['ts'] as int)
+              : null,
         ),
       );
       return (null, null);
@@ -237,8 +279,18 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
     }
     final tabRaw = (decoded['tabId'] ?? '').toString();
     final argsRaw = decoded['args'];
+    final caller = decoded['callerTabId'];
+    if (caller != null && (caller is! String || caller.isEmpty)) {
+      return (
+        jsonEncode(
+          const CockpitCommandResult.fail('invalid callerTabId').toJson(),
+        ),
+        null,
+      );
+    }
     final command = CockpitCommand(
       cmd: (decoded['cmd'] ?? '').toString(),
+      callerTabId: caller as String?,
       tabId: tabRaw.isEmpty ? null : tabRaw,
       args: argsRaw is Map
           ? Map<String, dynamic>.from(argsRaw)

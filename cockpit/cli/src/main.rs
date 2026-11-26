@@ -51,7 +51,16 @@ fn main() {
         // `--harness <nome>` diz de quem veio o evento (default: claude, pros
         // entries antigos que não passam a flag). Silencioso por contrato: não
         // escreve no stdout e nunca falha barulhento.
+        // Windows runner uses this before initializing Flutter/plugins.
+        // Strict namespace/flavor discovery; no inherited tab/endpoint routing.
+        "--forward-native-open" => {
+            let delivered = args
+                .split_first()
+                .is_some_and(|(flavor, files)| transport::forward_native_open(flavor, files));
+            std::process::exit(if delivered { 0 } else { 1 });
+        }
         "hook" => hook::run(args),
+        "statusline" => hook::run_statusline(),
         "send" => commands::send(args),
         "send-key" | "send-keys" => commands::send_key(args),
         "open" => commands::open(args),

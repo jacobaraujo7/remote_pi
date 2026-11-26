@@ -1,3 +1,6 @@
+import '../document/open_files_channel.dart';
+import '../session/orchestration_session.dart';
+import 'orchestration_cli_handler.dart';
 import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:io' show Directory, File, FileSystemException, Platform;
@@ -7,6 +10,7 @@ import 'package:cockpit/app/cockpit/data/remote/remote_host_connector.dart';
 import 'package:cockpit/app/cockpit/domain/entities/layout_spec.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/task_device_coordinator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
@@ -14,6 +18,7 @@ import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_result.dart';
 import 'package:cockpit/app/cockpit/domain/entities/dbq_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
+import 'package:cockpit/app/cockpit/domain/services/http_script_session.dart';
 import 'package:cockpit/app/cockpit/domain/entities/notebook_document.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
@@ -25,11 +30,11 @@ import 'package:cockpit/app/cockpit/domain/entities/sql_statements.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_access_gate.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_query_service.dart';
 import 'package:cockpit/app/cockpit/domain/services/mongo_browse_service.dart';
+import 'package:cockpit/app/cockpit/domain/services/open_target_resolver.dart';
 import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/utils/path_utils.dart';
 import 'package:cockpit/app/core/utils/shell_command.dart';
-import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
 import 'package:cockpit/app/cockpit/ui/session/empty_tab.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
@@ -61,6 +66,7 @@ class CockpitCliHandler {
     this._taskRuns,
     this._taskTerms,
     this._telemetry,
+    this._devices,
   );
 
   final CockpitViewModel _vm;
@@ -70,6 +76,7 @@ class CockpitCliHandler {
   final TaskDiscovery _tasks;
   final TaskRunnerGateway _taskRuns;
   final TaskTerminalStore _taskTerms;
+  final TaskDeviceCoordinator _devices;
 
   /// Contexto de tasks REMOTO por workspace (plano 58): a página pluga a
   /// mesma fábrica que serve o painel Tasks (par descoberta + runner do host,
@@ -88,6 +95,7 @@ class CockpitCliHandler {
     String root,
     TaskDiscovery discovery,
     TaskRunnerGateway runner,
+    bool remote,
   })?
   _taskContext(CockpitCommand c) {
     final sender = c.tabId == null ? null : _vm.session(c.tabId!);
@@ -104,6 +112,7 @@ class CockpitCliHandler {
       root: root,
       discovery: remote?.discovery ?? _tasks,
       runner: remote?.runner ?? _taskRuns,
+      remote: project.remoteHostId != null,
     );
   }
 
@@ -114,14 +123,43 @@ class CockpitCliHandler {
       String root,
       TaskDiscovery discovery,
       TaskRunnerGateway runner,
+      bool remote,
     })
     ctx,
     String taskId,
   ) async {
-    final defs = await ctx.discovery.discover(ctx.root);
+    final defs = await ctx.discovery.discover(
+      ctx.root,
+      workspaceId: ctx.project.id,
+    );
     for (final d in defs) {
-      if (d.id == taskId) return d;
+      if (d.id == taskId || d.localId == taskId) return d;
     }
+    return null;
+  }
+
+  /// Aplica a seleção de device no workspace local e inicia a task. No remoto
+  /// o argv não muda — devices da máquina do Cockpit não servem no host.
+  /// Devolve um erro quando não há device compatível; null quando o start ocorreu.
+  Future<CockpitCommandResult?> _startPrepared(
+    TaskRunnerGateway runner,
+    TaskDefinition def, {
+    required bool remote,
+    String? profileName,
+  }) async {
+    final plan = await _devices.plan(
+      def,
+      profileName: profileName,
+      remote: remote,
+    );
+    if (plan.blocked) {
+      return CockpitCommandResult.fail('no compatible device for "${def.id}"');
+    }
+    await runner.start(
+      def,
+      profileName: profileName,
+      argsOverride: plan.argsOverride,
+    );
     return null;
   }
 
@@ -130,6 +168,37 @@ class CockpitCliHandler {
   /// `BuildContext`, só lê/muta o estado da VM. Retorna rápido (o `insertText`
   /// só enfileira o write no PTY).
   Future<CockpitCommandResult> handle(CockpitCommand rawCommand) async {
+    final scoped = await OrchestrationCliRouter(
+      findSession: _vm.session,
+      findOwner: _vm.orchestrationById,
+      focusedTabId: () => _vm.focusedTabId,
+      workspace: (id) {
+        final project = _vm.projectById(id);
+        return project == null
+            ? null
+            : (
+                root: project.effectiveRoot,
+                name: project.name,
+                remote: project.remoteHostId != null,
+              );
+      },
+      projectCommand: _handleUnscoped,
+    ).handle(rawCommand);
+    return scoped ?? _handleUnscoped(rawCommand);
+  }
+
+  Future<CockpitCommandResult> _handleUnscoped(
+    CockpitCommand rawCommand,
+  ) async {
+    final originId = rawCommand.callerTabId;
+    final originPane = originId == null ? null : _vm.session(originId);
+    if (originId != null &&
+        (originPane == null ||
+            (originPane is TerminalSession && originPane.hasExited))) {
+      return const CockpitCommandResult.fail(
+        'Originating pane is no longer available',
+      );
+    }
     // `--focused` chega como o sentinela `@focused` no `tabId`: quem sabe qual
     // aba está em foco é a VM, não a CLI. Resolver aqui (e não em cada case)
     // vale pra todo comando que mira aba. Ferramenta externa (ditado por voz,
@@ -145,9 +214,26 @@ class CockpitCliHandler {
     if (TelemetryCliHandler.handles(c.cmd)) {
       // `--app` (plano 68): store do próprio Cockpit, sem workspace.
       if (c.args['app'] == true) return _telemetry.handle(c, null, '');
+      final telemetryOrigin = originPane ?? _vm.session(c.tabId ?? '');
+      final ownerId = telemetryOrigin?.owner.instanceId;
+      bool originAvailable() {
+        if (ownerId == null) return true;
+        final owner = _vm.orchestrationById(ownerId);
+        return owner != null &&
+            !owner.disposed &&
+            !owner.closing &&
+            identical(_vm.session(telemetryOrigin!.id), telemetryOrigin);
+      }
+
       return _projectCommand(
         c,
-        (project, root) => _telemetry.handle(c, project, root),
+        (project, root) => _telemetry.handle(
+          c,
+          project,
+          root,
+          terminalOwnerId: ownerId,
+          originAvailable: originAvailable,
+        ),
       );
     }
     switch (c.cmd) {
@@ -178,6 +264,10 @@ class CockpitCliHandler {
           );
         }
         s.insertText(text);
+        final source = c.args['sourceTabId'];
+        if (source is String && source.isNotEmpty) {
+          _vm.recordGraphTraffic(source, id);
+        }
         return const CockpitCommandResult.ok();
 
       case 'list-panes':
@@ -228,15 +318,27 @@ class CockpitCliHandler {
           return CockpitCommandResult.fail('file not found: "$path"');
         }
         final from = c.tabId;
-        String? targetProject;
-        String? targetLeaf;
+        String? callerProject;
+        String? callerLeaf;
         if (from != null && from.isNotEmpty) {
           final s = _vm.session(from);
           if (s != null) {
-            targetProject = s.projectId;
-            targetLeaf = _vm.leafOfTab(targetProject, from);
+            callerProject = s.projectId;
+            callerLeaf = _vm.leafOfTab(callerProject, from);
           }
         }
+        // A aba emissora pode não ser a do agente: o daemon do Codex é
+        // compartilhado e herda o COCKPIT_TAB_ID da primeira aba. O caminho do
+        // arquivo desempata (ver `resolveOpenTargetProject`).
+        final targetProject = resolveOpenTargetProject(
+          path: path,
+          callerProjectId: callerProject,
+          projects: _vm.projects,
+          caseInsensitive: Platform.isWindows,
+        );
+        // Mudou de workspace → a folha do terminal emissor não existe lá; abre
+        // na folha em foco do destino.
+        final targetLeaf = targetProject == callerProject ? callerLeaf : null;
         if (targetProject != null && targetProject != _vm.selectedProjectId) {
           _vm.selectProject(targetProject);
         }
@@ -262,7 +364,7 @@ class CockpitCliHandler {
         }
         for (final path in paths) {
           if (await File(path).exists() || await Directory(path).exists()) {
-            unawaited(DocumentWindows.open(path));
+            unawaited(OpenFilesChannel.open(path));
           }
         }
         return const CockpitCommandResult.ok();
@@ -312,6 +414,13 @@ class CockpitCliHandler {
               'invalid split "$split" (expected right or down)',
             );
         }
+        if (originId != null &&
+            (!identical(_vm.session(originId), originPane) ||
+                (originPane is TerminalSession && originPane.hasExited))) {
+          return const CockpitCommandResult.fail(
+            'Originating pane is no longer available',
+          );
+        }
         final title = (c.args['title'] ?? '').toString();
         final sender = c.tabId == null ? null : _vm.session(c.tabId!);
         String? anchorLeaf;
@@ -359,6 +468,11 @@ class CockpitCliHandler {
             return CockpitCommandResult.fail('tab "$id" does not exist');
           }
         }
+        if (s is OrchestrationSession) {
+          return const CockpitCommandResult.fail(
+            'Close the orchestration app through its own controls',
+          );
+        }
         // `closeTab` opera sobre o workspace ATIVO (lê `_activeTree`), então
         // fechar aba de outro workspace exige trazê-lo pra frente antes —
         // mesma regra do `open`/`new-tab`.
@@ -378,6 +492,11 @@ class CockpitCliHandler {
               'Neovim has modified buffers; close it from the UI to confirm',
             );
           }
+        }
+        if (_vm.graphBoxForTab(s.id) != null) {
+          return const CockpitCommandResult.fail(
+            'This terminal belongs to a graph box. Close it in the Cockpit UI to choose whether to keep or remove the box.',
+          );
         }
         // O fechamento roda DEPOIS da resposta (`afterResponse`): fechar a
         // própria aba emissora mata o PTY — e com ele o shell e o processo
@@ -722,7 +841,14 @@ class CockpitCliHandler {
             'tab "${s.id}" (${_paneKind(s)}) has no readable output',
           );
         }
-        return CockpitCommandResult.ok(readTerminalWindow(term, c.args));
+        final window = readTerminalWindow(term, c.args);
+        if ((window['lines'] as int? ?? 0) > 0) {
+          final source = c.args['sourceTabId'];
+          if (source is String && source.isNotEmpty) {
+            _vm.recordGraphTraffic(s.id, source);
+          }
+        }
+        return CockpitCommandResult.ok(window);
 
       // `cockpit exec <command...>` (plano 67) — roda uma linha de shell na
       // máquina do app e devolve stdout/stderr/exit code. O shell é o **perfil
@@ -773,15 +899,18 @@ class CockpitCliHandler {
             );
           }
         }
+        final environment = _vm.cliEnvironment(tabId: c.tabId);
+        final profile = _vm.defaultTerminalProfile;
         if (cwd.isNotEmpty && !await Directory(cwd).exists()) {
           return CockpitCommandResult.fail('cwd not found: "$cwd"');
         }
         final result = await runShellCommand(
           command,
+          operation: ShellCommandOperation.cliExec,
           cwd: cwd.isEmpty ? null : cwd,
-          environment: _vm.cliEnvironment(tabId: c.tabId),
+          environment: environment,
           timeout: Duration(seconds: timeout <= 0 ? 60 : timeout),
-          profile: _vm.defaultTerminalProfile,
+          profile: profile,
         );
         return CockpitCommandResult.ok(result.toJson());
 
@@ -858,7 +987,10 @@ class CockpitCliHandler {
             'no workspace to list tasks for',
           );
         }
-        final defs = await ctx.discovery.discover(ctx.root);
+        final defs = await ctx.discovery.discover(
+          ctx.root,
+          workspaceId: ctx.project.id,
+        );
         final tasks = defs
             .map(
               (d) => <String, dynamic>{
@@ -915,10 +1047,13 @@ class CockpitCliHandler {
               }
               await ctx.runner.stop(def.id);
             }
-            await ctx.runner.start(
+            final started = await _startPrepared(
+              ctx.runner,
               def,
+              remote: ctx.remote,
               profileName: profile.isEmpty ? null : profile,
             );
+            if (started != null) return started;
           case 'stop-task':
             if (!running) {
               return CockpitCommandResult.fail('"$taskId" is not running');
@@ -928,7 +1063,12 @@ class CockpitCliHandler {
             if (running) {
               await ctx.runner.restart(def.id);
             } else {
-              await ctx.runner.start(def);
+              final started = await _startPrepared(
+                ctx.runner,
+                def,
+                remote: ctx.remote,
+              );
+              if (started != null) return started;
             }
           case 'send-task-key':
             final key = (c.args['key'] ?? '').toString();
@@ -952,7 +1092,9 @@ class CockpitCliHandler {
         if (taskId.isEmpty) {
           return const CockpitCommandResult.fail('missing task id');
         }
-        final term = _taskTerms.existingTerminal(taskId);
+        final ctx = _taskContext(c);
+        final def = ctx == null ? null : await _findTask(ctx, taskId);
+        final term = _taskTerms.existingTerminal(def?.id ?? taskId);
         if (term == null) {
           return CockpitCommandResult.fail(
             'no output recorded for task "$taskId" (never ran this boot?)',
@@ -1136,14 +1278,34 @@ class CockpitCliHandler {
           }
           final path = (c.args['path'] ?? '').toString();
           final timeout = int.tryParse('${c.args['timeout'] ?? ''}');
-          final result = await _http.send(
-            doc.resolveRequest(doc.requests[index]),
+          final result = await HttpScriptSession.shared.run(
+            _http,
+            doc,
+            doc.requests[index],
             baseDir: Directory(path).parent.path,
             timeout: Duration(seconds: timeout ?? 30),
           );
-          return result.fold(
-            (value) => CockpitCommandResult.ok(value.toJson()),
-            (error) => CockpitCommandResult.fail(_httpErrorText(error)),
+          if (result.transportError case final error?) {
+            return CockpitCommandResult.fail(_httpErrorText(error));
+          }
+          if (result.response case final response?) {
+            return CockpitCommandResult.ok({
+              ...response.toJson(),
+              'passed': !result.failed,
+              'tests': [
+                for (final test in result.tests)
+                  {
+                    'name': test.name,
+                    'passed': test.passed,
+                    'message': test.message,
+                  },
+              ],
+              'logs': result.logs,
+              if (result.scriptError != null) 'scriptError': result.scriptError,
+            });
+          }
+          return CockpitCommandResult.fail(
+            result.scriptError ?? 'script_failed',
           );
         });
 
@@ -1683,6 +1845,11 @@ class CockpitCliHandler {
     if (c.tabId != _focusSentinel) return c;
     final id = _vm.focusedTabId;
     if (id == null || id.isEmpty) return null;
-    return CockpitCommand(cmd: c.cmd, tabId: id, args: c.args);
+    return CockpitCommand(
+      cmd: c.cmd,
+      tabId: id,
+      callerTabId: c.callerTabId,
+      args: c.args,
+    );
   }
 }

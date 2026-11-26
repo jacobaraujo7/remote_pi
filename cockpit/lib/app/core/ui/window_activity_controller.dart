@@ -8,7 +8,8 @@ class WindowActivityController extends ChangeNotifier {
 
   bool get isActive => _focused && !_minimized;
 
-  void focus() => _update(focused: true);
+  // A focused window is restored even when the native restore event is missed.
+  void focus() => _update(focused: true, minimized: false);
 
   void blur() => _update(focused: false);
 

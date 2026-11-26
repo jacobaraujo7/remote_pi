@@ -21,17 +21,28 @@ sealed class MenuNode {
 /// ⌘ no macOS, Ctrl no Windows/Linux — a convenção esperada em cada SO. Guardar
 /// o modificador de forma abstrata evita declarar a tecla duas vezes (uma pro
 /// menu nativo, outra pro handler) e mantém o hint visual correto em cada SO.
+///
+/// [primary] `false` + [alt] = atalho só com ⌥/Alt (ex.: ⌥Z do word wrap, a
+/// mesma tecla nas três plataformas, como no VS Code).
 class MenuAccelerator {
-  const MenuAccelerator(this.key, {this.shift = false});
+  const MenuAccelerator(
+    this.key, {
+    this.shift = false,
+    this.alt = false,
+    this.primary = true,
+  });
 
   final LogicalKeyboardKey key;
   final bool shift;
+  final bool alt;
+  final bool primary;
 
   SingleActivator resolve() => SingleActivator(
     key,
-    meta: Platform.isMacOS,
-    control: !Platform.isMacOS,
+    meta: primary && Platform.isMacOS,
+    control: primary && !Platform.isMacOS,
     shift: shift,
+    alt: alt,
   );
 }
 

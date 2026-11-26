@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/data/tasks/pty_task_runner.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/dev_tool_registry.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/telemetry_ingest.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,7 +51,7 @@ void main() {
   });
 
   test('runner expõe startWatch/stopWatch sem lançar p/ task sem watch', () {
-    final runner = PtyTaskRunner(_NoTelemetry());
+    final runner = PtyTaskRunner(_NoTelemetry(), DevToolRegistry(const []));
     const def = TaskDefinition(
       id: 'x',
       label: 'x',
@@ -72,7 +73,7 @@ class _NoTelemetry implements TelemetryIngest {
   void registerWorkspace(TelemetryWorkspace workspace) {}
 
   @override
-  TelemetryIngestSession? session(String runId) => null;
+  TelemetryIngestSession? session(String runId, {String? workspaceId}) => null;
 
   @override
   Future<TelemetryIngestSession?> openAppRun({required String version}) async =>
@@ -89,6 +90,8 @@ class _NoTelemetry implements TelemetryIngest {
   Future<TelemetryIngestSession?> openWrapperRun({
     required String cwd,
     required String command,
+    String? workspaceId,
+    String? ownerId,
     String? name,
     String? paneId,
     int? pid,

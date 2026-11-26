@@ -141,7 +141,7 @@ class _GitProcessDialogState extends State<_GitProcessDialog> {
               ),
             ],
           ),
-          if (extra != null) ...[
+          if (extra != null && extra.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(extra, style: typo.label.copyWith(color: colors.text3)),
           ],

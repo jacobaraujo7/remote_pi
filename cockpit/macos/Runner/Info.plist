@@ -66,6 +66,16 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
+			<string>Cockpit Agent Orchestration</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>work.jacobmoura.cockpit.orchestration</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
 			<string>Cockpit Kanban Board</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
@@ -129,6 +139,19 @@
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>work.jacobmoura.cockpit.orchestration</string>
+			<key>UTTypeDescription</key>
+			<string>Cockpit Agent Orchestration</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.json</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array><string>orc</string><string>orchestration</string></array>
+			</dict>
+		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
 			<string>work.jacobmoura.cockpit.kanban</string>

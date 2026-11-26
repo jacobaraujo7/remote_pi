@@ -16,6 +16,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 /// `.kanban` = quadro de cards da tab de kanban.
 const Map<String, String> _extensionOverrides = {
   'dbq': 'database',
+  'board': 'excalidraw',
+  'canvas': 'excalidraw',
   'kanban': 'todo',
   'http': 'http',
   'rest': 'http',
@@ -23,6 +25,8 @@ const Map<String, String> _extensionOverrides = {
   'notebook': 'cockpit-notebook',
   // Painel HTML vivo (plano 67): SVG nosso, janela com play.
   'panel': 'cockpit-panel',
+  'orc': 'cockpit-panel',
+  'orchestration': 'cockpit-panel',
 };
 
 String fileIconName(String fileName) {

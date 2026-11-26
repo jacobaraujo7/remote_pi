@@ -1,6 +1,9 @@
 import 'package:cockpit_core/cockpit_core.dart';
 import 'dart:io';
 
+import 'package:cockpit/app/cockpit/data/terminal/local_terminal_attachments.dart';
+import 'package:cockpit/app/cockpit/data/terminal/pasteboard_terminal_clipboard.dart';
+import 'package:cockpit/app/cockpit/domain/services/terminal_attachment_service.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/db_connection_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/db_driver.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/nosql_runner.dart';
@@ -36,12 +39,21 @@ import 'package:cockpit/app/cockpit/data/repositories/json_workspace_layout_stor
 import 'package:cockpit/app/cockpit/data/repositories/project_schema_migrator.dart';
 import 'package:cockpit/app/cockpit/data/hooks/terminal_status_server_impl.dart';
 import 'package:cockpit/app/cockpit/data/tasks/pty_task_runner.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/dev_tool_registry.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/flutter_tool.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/json_device_selection_store.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/task_device_coordinator.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/task_device_coordinator.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/dev_tool.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/device_selection_store.dart';
 import 'package:cockpit/app/cockpit/data/telemetry/line_parser/telemetry_line_parser_impl.dart';
 import 'package:cockpit/app/cockpit/data/telemetry/telemetry_ingest_impl.dart';
 import 'package:cockpit/app/cockpit/data/telemetry/telemetry_store_registry.dart';
 import 'package:cockpit/app/cockpit/data/tasks/task_discovery_impl.dart';
 import 'package:cockpit/app/cockpit/data/http/http_request_runner_impl.dart';
 import 'package:cockpit/app/cockpit/data/process/process_tree_provider_factory.dart';
+import 'package:cockpit/app/cockpit/data/process/process_metrics_provider.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/process_metrics_provider.dart';
 import 'package:cockpit/app/cockpit/data/terminal/file_terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/data/remote/json_remote_hosts_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/remote_hosts_store.dart';
@@ -105,6 +117,7 @@ import 'package:cockpit/app/core/data/setup/json_state_store.dart';
 import 'package:cockpit/app/core/data/setup/storage_location.dart';
 import 'package:cockpit/app/core/ui/window_activity_controller.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kReleaseMode;
+import 'package:window_manager/window_manager.dart' show windowManager;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -153,6 +166,10 @@ Future<Module> buildCockpitModule({
     stateDir,
     JsonSettingsStore.storeName,
   );
+  final taskDeviceStore = await JsonStateStore.open(
+    stateDir,
+    JsonDeviceSelectionStore.storeName,
+  );
   final appVersion = (await PackageInfo.fromPlatform()).version;
 
   // Notificações do SO — init pede permissão; falha não pode derrubar o boot.
@@ -199,6 +216,7 @@ Future<Module> buildCockpitModule({
         ..addLazySingleton<SshTunnel>(SshTunnelImpl.new)
         ..addLazySingleton<DbQueryService>(DbQueryService.new)
         ..addLazySingleton<HttpRequestRunner>(HttpRequestRunnerImpl.new)
+        ..addLazySingleton<HttpViewModel>(HttpViewModel.new)
         ..addInstance<FileSearcher>(FileSearcherImpl())
         ..addInstance<ContentSearcher>(const ContentSearcherImpl())
         ..addInstance<GitBinary>(GitBinary())
@@ -226,6 +244,13 @@ Future<Module> buildCockpitModule({
         // resolve o grafo — ver a regra de injeção no CLAUDE.md.
         ..addLazySingleton<TurnStatusSource>(
           (SidecarTerminalConnector sidecar) => sidecar,
+        )
+        ..addInstance<TerminalAttachmentService>(
+          const TerminalAttachmentService(
+            PasteboardTerminalClipboard(),
+            LocalTerminalAttachmentStore(),
+            LocalTerminalPathConverter(),
+          ),
         )
         ..addLazySingleton<TerminalGatewayFactory>(
           SidecarTerminalGatewayFactory.new,
@@ -259,7 +284,13 @@ Future<Module> buildCockpitModule({
           const TelemetryLineParserFactoryImpl(),
         )
         ..addLazySingleton<TelemetryIngest>(TelemetryIngestImpl.new)
+        ..addInstance<DevToolRegistry>(DevToolRegistry(const [FlutterTool()]))
         ..addLazySingleton<TaskRunnerGateway>(PtyTaskRunner.new)
+        ..addInstance<DeviceSelectionStore>(
+          JsonDeviceSelectionStore(taskDeviceStore),
+        )
+        ..addInstance<HostOs>(_currentHostOs())
+        ..addLazySingleton<TaskDeviceCoordinator>(TaskDeviceCoordinatorImpl.new)
         ..addLazySingleton(TaskTerminalStore.new)
         ..addInstance<TaskDiscovery>(TaskDiscoveryImpl(const []))
         ..addInstance<LayoutLoader>(const CkpLayoutLoader())
@@ -278,6 +309,7 @@ Future<Module> buildCockpitModule({
           // tipados a partir dos binds acima; WindowActivityController vem
           // direto do bootstrap porque não atravessa os injectors da rota.
           provide: (s) => s
+            ..add<ProcessMetricsProvider>(() => createProcessMetricsProvider())
             // Estado git extraído do CockpitViewModel (mesma vida da rota);
             // o VM o recebe no construtor e injeta o contexto de shell.
             ..addChangeNotifier<GitController>(
@@ -310,7 +342,11 @@ Future<Module> buildCockpitModule({
             ..addChangeNotifier<UpdateViewModel>(UpdateViewModel.new)
             ..addChangeNotifier<DatabaseViewModel>(DatabaseViewModel.new)
             ..addChangeNotifier<TelemetryViewModel>(TelemetryViewModel.new)
-            ..addChangeNotifier<HttpViewModel>(HttpViewModel.new),
+            ..addListenable<HttpViewModel>(
+              () => inject<HttpViewModel>(),
+              (vm) => vm,
+              (_) {},
+            ),
           child: (context, state) => const CockpitPage(),
         );
     },
@@ -367,5 +403,19 @@ SelfUpdater _buildSelfUpdater(UpdateTarget target) {
   if (!kReleaseMode) return const NoopSelfUpdater();
   final feed = target.selfUpdateFeedUrl;
   if (feed == null) return const NoopSelfUpdater();
-  return AutoUpdaterSelfUpdater(feedUrl: feed, autoDownloads: Platform.isMacOS);
+  return AutoUpdaterSelfUpdater(
+    feedUrl: feed,
+    autoDownloads: Platform.isMacOS,
+    // WinSparkle lança o instalador e pede pro host sair (#330). Fecha pelo
+    // caminho limpo da janela (`onWindowClose` → flush → destroy), o mesmo do X.
+    quitForUpdate: windowManager.close,
+  );
+}
+
+/// SO desta máquina, para a prioridade automática de device. Linux cobre o
+/// resto (o Cockpit desktop não roda em mobile).
+HostOs _currentHostOs() {
+  if (Platform.isMacOS) return HostOs.macos;
+  if (Platform.isWindows) return HostOs.windows;
+  return HostOs.linux;
 }

@@ -9,6 +9,13 @@ class ClaudeStatusUpdate {
     this.sessionId,
     this.transcriptPath,
     this.harness,
+    this.contextTokens,
+    this.contextWindow,
+    this.subagentId,
+    this.subagentType,
+    this.graphRecipient,
+    this.graphSelfName,
+    this.eventAt,
   });
 
   /// Id da aba (vem do env `COCKPIT_PANE_ID` injetado na PTV — roteamento).
@@ -33,6 +40,21 @@ class ClaudeStatusUpdate {
   /// instalador grava no comando do hook; `null` em helpers antigos (que só
   /// existiam para o Claude — ver [AgentHarness.fromWire]).
   final String? harness;
+
+  /// Exact context values supplied by the Claude Code status-line payload.
+  final int? contextTokens;
+  final int? contextWindow;
+
+  /// Child lifecycle identity from SubagentStart/SubagentStop hooks.
+  final String? subagentId;
+  final String? subagentType;
+
+  /// Claude SendMessage recipient address, without message content.
+  final String? graphRecipient;
+
+  /// Claude ListAgents address for the terminal's own session.
+  final String? graphSelfName;
+  final DateTime? eventAt;
 }
 
 /// Harness que roda numa aba de terminal. O Cockpit precisa distinguir para
@@ -75,7 +97,12 @@ enum AgentHarness {
 /// Comando enviado pela **CLI interna** `cockpit` (binário em `~/.cockpit/bin`)
 /// pelo mesmo socket do status. Discriminado no wire por `type:"cmd"`.
 class CockpitCommand {
-  const CockpitCommand({required this.cmd, this.tabId, this.args = const {}});
+  const CockpitCommand({
+    required this.cmd,
+    this.tabId,
+    this.callerTabId,
+    this.args = const {},
+  });
 
   /// Verbo no wire: `write` (send/send-key) | `list-panes` | `list-workspaces` |
   /// `new-workspace` | `close-workspace` | `rename-workspace`.
@@ -84,6 +111,10 @@ class CockpitCommand {
   /// Pane alvo (default = `$COCKPIT_PANE_ID` resolvido pela CLI). `null` só nos
   /// comandos que não miram pane (list-*).
   final String? tabId;
+
+  /// Originating pane (usually a terminal), independent of the destination.
+  /// Used to resolve the instance before looking up any destination.
+  final String? callerTabId;
 
   /// Argumentos do comando (ex.: `{data: <base64 utf8>}` no `write`).
   final Map<String, dynamic> args;

@@ -47,7 +47,12 @@ class Translations with BaseTranslations<AppLocale, Translations> {
 	late final Translations$settings$en settings = Translations$settings$en.internal(_root);
 	late final Translations$automation$en automation = Translations$automation$en.internal(_root);
 	late final Translations$fileOperation$en fileOperation = Translations$fileOperation$en.internal(_root);
+	late final Translations$graphSubagent$en graphSubagent = Translations$graphSubagent$en.internal(_root);
+	late final Translations$graphView$en graphView = Translations$graphView$en.internal(_root);
 	late final Translations$theme$en theme = Translations$theme$en.internal(_root);
+	late final Translations$workspaceView$en workspaceView = Translations$workspaceView$en.internal(_root);
+	late final Translations$terminalAttachment$en terminalAttachment = Translations$terminalAttachment$en.internal(_root);
+	late final Translations$orchestration$en orchestration = Translations$orchestration$en.internal(_root);
 }
 
 // Path: core
@@ -57,6 +62,7 @@ class Translations$core$en {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
+	late final Translations$core$clipboard$en clipboard = Translations$core$clipboard$en.internal(_root);
 	late final Translations$core$bootstrapError$en bootstrapError = Translations$core$bootstrapError$en.internal(_root);
 	late final Translations$core$macosNotifications$en macosNotifications = Translations$core$macosNotifications$en.internal(_root);
 	late final Translations$core$appErrorView$en appErrorView = Translations$core$appErrorView$en.internal(_root);
@@ -154,6 +160,7 @@ class Translations$cockpit$en {
 	late final Translations$cockpit$confirmDialog$en confirmDialog = Translations$cockpit$confirmDialog$en.internal(_root);
 	late final Translations$cockpit$neovim$en neovim = Translations$cockpit$neovim$en.internal(_root);
 	late final Translations$cockpit$worktreeCreateDialog$en worktreeCreateDialog = Translations$cockpit$worktreeCreateDialog$en.internal(_root);
+	late final Translations$cockpit$branchSwitchDialog$en branchSwitchDialog = Translations$cockpit$branchSwitchDialog$en.internal(_root);
 	late final Translations$cockpit$commitMessageDialog$en commitMessageDialog = Translations$cockpit$commitMessageDialog$en.internal(_root);
 	late final Translations$cockpit$tasksPanel$en tasksPanel = Translations$cockpit$tasksPanel$en.internal(_root);
 	late final Translations$cockpit$cockpitPage$en cockpitPage = Translations$cockpit$cockpitPage$en.internal(_root);
@@ -187,6 +194,7 @@ class Translations$cockpit$en {
 	late final Translations$cockpit$layoutPreview$en layoutPreview = Translations$cockpit$layoutPreview$en.internal(_root);
 	late final Translations$cockpit$telemetry$en telemetry = Translations$cockpit$telemetry$en.internal(_root);
 	late final Translations$cockpit$panelView$en panelView = Translations$cockpit$panelView$en.internal(_root);
+	late final Translations$cockpit$cloneRepoDialog$en cloneRepoDialog = Translations$cockpit$cloneRepoDialog$en.internal(_root);
 }
 
 // Path: settings
@@ -221,6 +229,153 @@ class Translations$fileOperation$en {
 	late final Translations$fileOperation$error$en error = Translations$fileOperation$error$en.internal(_root);
 }
 
+// Path: graphSubagent
+class Translations$graphSubagent$en {
+	Translations$graphSubagent$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'TEMPORARY SUBAGENT'
+	String get badge => 'TEMPORARY SUBAGENT';
+
+	/// en: 'Subagent'
+	String get nameFallback => 'Subagent';
+
+	/// en: '● running'
+	String get active => '● running';
+
+	/// en: '◌ host disconnected'
+	String get disconnected => '◌ host disconnected';
+
+	/// en: 'Temporary subagent: ${type} ID: ${id} Tool: ${harness} Controlled by tab ${tab} Started: ${time} Tokens/context: unavailable from this hook Source: SubagentStart hook'
+	String tooltip({required Object type, required Object id, required Object harness, required Object tab, required Object time}) => 'Temporary subagent: ${type}\nID: ${id}\nTool: ${harness}\nControlled by tab ${tab}\nStarted: ${time}\nTokens/context: unavailable from this hook\nSource: SubagentStart hook';
+}
+
+// Path: graphView
+class Translations$graphView$en {
+	Translations$graphView$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'LEGEND'
+	String get legend => 'LEGEND';
+
+	/// en: 'Working'
+	String get working => 'Working';
+
+	/// en: 'Waiting'
+	String get waiting => 'Waiting';
+
+	/// en: 'Idle'
+	String get idle => 'Idle';
+
+	/// en: 'Starting'
+	String get starting => 'Starting';
+
+	/// en: 'Ended'
+	String get ended => 'Ended';
+
+	/// en: 'Host disconnected'
+	String get disconnected => 'Host disconnected';
+
+	/// en: 'Unknown'
+	String get unknown => 'Unknown';
+
+	/// en: 'Planned link'
+	String get planned => 'Planned link';
+
+	/// en: 'Observed exchange'
+	String get observed => 'Observed exchange';
+
+	/// en: 'Temporary subagent'
+	String get temporary => 'Temporary subagent';
+
+	/// en: 'Claude recipient'
+	String get unresolvedPeer => 'Claude recipient';
+
+	/// en: 'Tab not identified yet'
+	String get unresolvedPeerHint => 'Tab not identified yet';
+
+	/// en: 'Message observed for ${address}. Cockpit has not identified a matching tab, so no terminal connection was assumed.'
+	String unresolvedPeerTooltip({required Object address}) => 'Message observed for ${address}. Cockpit has not identified a matching tab, so no terminal connection was assumed.';
+
+	/// en: 'No role defined'
+	String get noRole => 'No role defined';
+
+	/// en: 'Terminal'
+	String get terminal => 'Terminal';
+
+	/// en: 'Default model'
+	String get defaultModel => 'Default model';
+
+	/// en: 'Context ${percent}%'
+	String context({required Object percent}) => 'Context ${percent}%';
+
+	/// en: 'Context unavailable'
+	String get contextUnavailable => 'Context unavailable';
+
+	/// en: 'Compaction suggested'
+	String get compactHint => 'Compaction suggested';
+
+	/// en: 'Prepare a handoff'
+	String get handoffHint => 'Prepare a handoff';
+
+	/// en: 'Connections'
+	String get connections => 'Connections';
+
+	/// en: 'No planned connections'
+	String get noConnections => 'No planned connections';
+
+	/// en: 'Open terminal'
+	String get openTerminal => 'Open terminal';
+
+	/// en: 'Controlled by the parent terminal'
+	String get controlledBy => 'Controlled by the parent terminal';
+
+	/// en: 'Tokens: ${count}'
+	String tokens({required Object count}) => 'Tokens: ${count}';
+
+	/// en: 'METRICS'
+	String get metrics => 'METRICS';
+
+	/// en: 'Source: ${value}'
+	String source({required Object value}) => 'Source: ${value}';
+
+	/// en: 'Updated: ${value}'
+	String updated({required Object value}) => 'Updated: ${value}';
+
+	/// en: 'SESSION'
+	String get tooltipSession => 'SESSION';
+
+	/// en: 'CONTEXT AND TOKENS'
+	String get tooltipContext => 'CONTEXT AND TOKENS';
+
+	/// en: 'MACHINE'
+	String get tooltipMachine => 'MACHINE';
+
+	/// en: '${tool} · ${model} · ${status}'
+	String tooltipIdentity({required Object tool, required Object model, required Object status}) => '${tool} · ${model} · ${status}';
+
+	/// en: '${used} / ${window} context tokens'
+	String tooltipUsage({required Object used, required Object window}) => '${used} / ${window} context tokens';
+
+	/// en: 'CPU ${value}%'
+	String tooltipCpu({required Object value}) => 'CPU ${value}%';
+
+	/// en: 'RAM ${value} MiB'
+	String tooltipRam({required Object value}) => 'RAM ${value} MiB';
+
+	/// en: '${source} · ${time}'
+	String tooltipSourceUpdated({required Object source, required Object time}) => '${source} · ${time}';
+
+	/// en: 'Unavailable: ${reason}'
+	String tooltipReason({required Object reason}) => 'Unavailable: ${reason}';
+}
+
 // Path: theme
 class Translations$theme$en {
 	Translations$theme$en.internal(this._root);
@@ -229,6 +384,333 @@ class Translations$theme$en {
 
 	// Translations
 	late final Translations$theme$error$en error = Translations$theme$error$en.internal(_root);
+}
+
+// Path: workspaceView
+class Translations$workspaceView$en {
+	Translations$workspaceView$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Terminals'
+	String get terminals => 'Terminals';
+
+	/// en: 'List'
+	String get boxes => 'List';
+
+	/// en: 'Graph'
+	String get graph => 'Graph';
+
+	/// en: 'New terminal'
+	String get newTerminal => 'New terminal';
+
+	/// en: 'Configure terminal'
+	String get configure => 'Configure terminal';
+
+	/// en: 'Close inspector'
+	String get closeInspector => 'Close inspector';
+
+	/// en: 'Search name or function'
+	String get search => 'Search name or function';
+
+	/// en: 'All states'
+	String get allStates => 'All states';
+
+	/// en: 'Terminal'
+	String get name => 'Terminal';
+
+	/// en: 'State'
+	String get state => 'State';
+
+	/// en: 'Tool'
+	String get tool => 'Tool';
+
+	/// en: 'Function'
+	String get role => 'Function';
+
+	/// en: 'Context'
+	String get context => 'Context';
+
+	/// en: 'Function (optional)'
+	String get optionalRole => 'Function (optional)';
+
+	/// en: 'Model (empty = default)'
+	String get model => 'Model (empty = default)';
+
+	/// en: 'None'
+	String get noTool => 'None';
+
+	/// en: 'Shell'
+	String get shell => 'Shell';
+
+	/// en: 'Working'
+	String get working => 'Working';
+
+	/// en: 'Waiting'
+	String get waiting => 'Waiting';
+
+	/// en: 'Idle'
+	String get idle => 'Idle';
+
+	/// en: 'Closed'
+	String get closed => 'Closed';
+
+	/// en: 'Disconnected'
+	String get disconnected => 'Disconnected';
+
+	/// en: 'Unavailable'
+	String get unavailable => 'Unavailable';
+
+	/// en: 'Add a function'
+	String get noRole => 'Add a function';
+
+	/// en: 'No terminals yet'
+	String get noBoxes => 'No terminals yet';
+
+	/// en: 'No terminals match your search'
+	String get noMatches => 'No terminals match your search';
+
+	/// en: 'Select a box to preview its terminal'
+	String get selectBox => 'Select a box to preview its terminal';
+
+	/// en: 'This terminal has no session'
+	String get noSession => 'This terminal has no session';
+
+	/// en: 'Start terminal'
+	String get startShell => 'Start terminal';
+
+	/// en: 'Open in Terminals'
+	String get openTerminal => 'Open in Terminals';
+
+	/// en: 'Save'
+	String get save => 'Save';
+
+	/// en: 'Configuration saved'
+	String get saved => 'Configuration saved';
+
+	/// en: 'Start CLI'
+	String get startCli => 'Start CLI';
+
+	/// en: 'Compact context'
+	String get compact => 'Compact context';
+
+	/// en: 'Prepare handoff'
+	String get handoff => 'Prepare handoff';
+
+	/// en: 'Handoff summary'
+	String get handoffTitle => 'Handoff summary';
+
+	/// en: 'Describe the current state and next steps. The summary will be copied for the new session.'
+	String get handoffHelp => 'Describe the current state and next steps. The summary will be copied for the new session.';
+
+	/// en: 'New session ready. Paste the copied summary when the tool is ready.'
+	String get handoffReady => 'New session ready. Paste the copied summary when the tool is ready.';
+
+	/// en: 'New session ready'
+	String get handoffSessionReady => 'New session ready';
+
+	/// en: 'The session was created, but the summary was not copied. Select and copy the summary below to continue.'
+	String get handoffCopyUnavailable => 'The session was created, but the summary was not copied. Select and copy the summary below to continue.';
+
+	/// en: 'Session'
+	String get handoffSessionLabel => 'Session';
+
+	/// en: 'Connections'
+	String get connections => 'Connections';
+
+	/// en: 'No connections'
+	String get noConnections => 'No connections';
+
+	/// en: 'Cancel'
+	String get cancel => 'Cancel';
+
+	/// en: 'Unable to update box'
+	String get error => 'Unable to update box';
+
+	/// en: 'Planned connection'
+	String get planned => 'Planned connection';
+
+	/// en: 'Observed activity'
+	String get observed => 'Observed activity';
+
+	/// en: 'Temporary subagent'
+	String get temporary => 'Temporary subagent';
+
+	/// en: 'Connect terminals'
+	String get linkBoxes => 'Connect terminals';
+
+	/// en: 'Select source and target'
+	String get selectEndpoints => 'Select source and target';
+
+	/// en: 'Reset zoom'
+	String get zoomFit => 'Reset zoom';
+
+	/// en: 'Session'
+	String get session => 'Session';
+
+	/// en: 'Configuration'
+	String get configuration => 'Configuration';
+
+	/// en: 'Enter a terminal name'
+	String get nameRequired => 'Enter a terminal name';
+
+	/// en: 'Remove connection'
+	String get removeLink => 'Remove connection';
+
+	/// en: 'Summary'
+	String get handoffSummary => 'Summary';
+
+	/// en: 'Copy function'
+	String get copyRole => 'Copy function';
+
+	/// en: 'Show inspector'
+	String get showInspector => 'Show inspector';
+
+	/// en: 'Connect to another terminal'
+	String get addConnection => 'Connect to another terminal';
+
+	/// en: 'Actions'
+	String get actions => 'Actions';
+
+	/// en: 'Hide terminal'
+	String get closeTerminal => 'Hide terminal';
+
+	/// en: 'Legend'
+	String get legend => 'Legend';
+
+	/// en: 'Saved in the .orc file. Session actions live in the terminal menu.'
+	String get portableHint => 'Saved in the .orc file. Session actions live in the terminal menu.';
+}
+
+// Path: terminalAttachment
+class Translations$terminalAttachment$en {
+	Translations$terminalAttachment$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Copying attachments: ${completed}/${total}'
+	String importing({required Object completed, required Object total}) => 'Copying attachments: ${completed}/${total}';
+
+	/// en: 'Image paste requested from the agent.'
+	String get nativeImage => 'Image paste requested from the agent.';
+
+	/// en: 'Local references inserted.'
+	String get referenced => 'Local references inserted.';
+
+	/// en: 'Files and images are not supported in remote terminals yet. Paste text or transfer the file to the host.'
+	String get remoteUnavailable => 'Files and images are not supported in remote terminals yet. Paste text or transfer the file to the host.';
+
+	/// en: 'Some attachments could not be inserted: ${detail}'
+	String failed({required Object detail}) => 'Some attachments could not be inserted: ${detail}';
+}
+
+// Path: orchestration
+class Translations$orchestration$en {
+	Translations$orchestration$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'New terminal'
+	String get newTerminal => 'New terminal';
+
+	/// en: 'Reload'
+	String get reload => 'Reload';
+
+	/// en: 'Unsaved changes'
+	String get savePending => 'Unsaved changes';
+
+	/// en: 'A definition was removed from the file. Close its terminal?'
+	String get removed => 'A definition was removed from the file. Close its terminal?';
+
+	/// en: 'Close terminal'
+	String get closeTerminal => 'Close terminal';
+
+	/// en: 'Keep terminal and restore definition'
+	String get restoreDefinition => 'Keep terminal and restore definition';
+
+	/// en: 'Directory relative to worktree'
+	String get directory => 'Directory relative to worktree';
+
+	/// en: 'Go to terminal'
+	String get openTerminal => 'Go to terminal';
+
+	/// en: 'Import existing configuration?'
+	String get importTitle => 'Import existing configuration?';
+
+	/// en: 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.'
+	String get importHelp => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.';
+
+	/// en: 'Create without importing'
+	String get createWithoutImport => 'Create without importing';
+
+	/// en: 'Import configuration'
+	String get importLegacy => 'Import configuration';
+
+	/// en: 'No CLI detected'
+	String get noCli => 'No CLI detected';
+
+	/// en: 'Connected CLI'
+	String get connectedCli => 'Connected CLI';
+
+	/// en: 'Needs your input'
+	String get needsInput => 'Needs your input';
+
+	/// en: 'New result'
+	String get newActivity => 'New result';
+
+	/// en: 'No role defined. Ask the connected agent for a suggestion.'
+	String get roleMissing => 'No role defined. Ask the connected agent for a suggestion.';
+
+	/// en: 'Ask agent for role'
+	String get askRole => 'Ask agent for role';
+
+	/// en: 'Waiting for agent…'
+	String get askingRole => 'Waiting for agent…';
+
+	/// en: 'Suggested role — review before saving'
+	String get roleSuggestion => 'Suggested role — review before saving';
+
+	/// en: 'Use suggestion'
+	String get useSuggestion => 'Use suggestion';
+
+	/// en: 'Discard'
+	String get discardSuggestion => 'Discard';
+
+	/// en: 'No CLI detected in this terminal.'
+	String get roleNoAgent => 'No CLI detected in this terminal.';
+
+	/// en: 'Wait until the agent is idle before asking.'
+	String get roleBusy => 'Wait until the agent is idle before asking.';
+
+	/// en: 'The terminal or document changed. Ask again.'
+	String get roleChanged => 'The terminal or document changed. Ask again.';
+
+	/// en: 'The agent did not return a suggestion in time. You can try again or fill the role manually.'
+	String get roleTimeout => 'The agent did not return a suggestion in time. You can try again or fill the role manually.';
+
+	/// en: 'The agent returned an invalid role suggestion.'
+	String get roleInvalid => 'The agent returned an invalid role suggestion.';
+
+	/// en: 'Select a terminal in the list or graph to work in it.'
+	String get noBoxSelected => 'Select a terminal in the list or graph to work in it.';
+}
+
+// Path: core.clipboard
+class Translations$core$clipboard$en {
+	Translations$core$clipboard$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Could not copy to the clipboard. Try again.'
+	String get writeFailed => 'Could not copy to the clipboard. Try again.';
 }
 
 // Path: core.bootstrapError
@@ -383,6 +865,9 @@ class Translations$core$menu$en {
 	/// en: 'New Terminal'
 	String get newTerminal => 'New Terminal';
 
+	/// en: 'New File'
+	String get newFile => 'New File';
+
 	/// en: 'Open Workspace'
 	String get openWorkspace => 'Open Workspace';
 
@@ -442,6 +927,9 @@ class Translations$core$menu$en {
 
 	/// en: 'Next Workspace'
 	String get nextWorkspace => 'Next Workspace';
+
+	/// en: 'Toggle Word Wrap'
+	String get toggleWordWrap => 'Toggle Word Wrap';
 
 	/// en: 'Zoom In'
 	String get zoomIn => 'Zoom In';
@@ -600,6 +1088,39 @@ class Translations$cockpit$worktreeCreateDialog$en {
 	String get back => 'Back';
 }
 
+// Path: cockpit.branchSwitchDialog
+class Translations$cockpit$branchSwitchDialog$en {
+	Translations$cockpit$branchSwitchDialog$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Switch branch — ${label}'
+	String title({required Object label}) => 'Switch branch — ${label}';
+
+	/// en: 'Current branch: ${current}'
+	String subtitle({required Object current}) => 'Current branch: ${current}';
+
+	/// en: 'Search branches...'
+	String get search => 'Search branches...';
+
+	/// en: 'Local branches'
+	String get local => 'Local branches';
+
+	/// en: 'Remote branches'
+	String get remote => 'Remote branches';
+
+	/// en: 'Switch'
+	String get switchAction => 'Switch';
+
+	/// en: 'No branches found.'
+	String get empty => 'No branches found.';
+
+	/// en: 'current'
+	String get current => 'current';
+}
+
 // Path: cockpit.commitMessageDialog
 class Translations$cockpit$commitMessageDialog$en {
 	Translations$cockpit$commitMessageDialog$en.internal(this._root);
@@ -695,6 +1216,27 @@ class Translations$cockpit$tasksPanel$en {
 	/// en: 'Create tasks.json'
 	String get createTasksJson => 'Create tasks.json';
 
+	/// en: 'Import from workspace'
+	String get importWorkspaceTasks => 'Import from workspace';
+
+	/// en: 'Importing tasks…'
+	String get importingTasks => 'Importing tasks…';
+
+	/// en: 'The source workspace has no tasks file.'
+	String get importSourceMissing => 'The source workspace has no tasks file.';
+
+	/// en: 'Could not import tasks. Try again.'
+	String get importFailed => 'Could not import tasks. Try again.';
+
+	/// en: 'Copy'
+	String get copy => 'Copy';
+
+	/// en: 'Copy All'
+	String get copyAll => 'Copy All';
+
+	/// en: 'Clear Console'
+	String get clearConsole => 'Clear Console';
+
 	/// en: 'Generate Compose tasks'
 	String get generateComposeTasks => 'Generate Compose tasks';
 
@@ -712,6 +1254,27 @@ class Translations$cockpit$tasksPanel$en {
 
 	/// en: 'Kept non-Compose tasks with conflicting labels: ${labels}'
 	String composeConflicts({required Object labels}) => 'Kept non-Compose tasks with conflicting labels: ${labels}';
+
+	/// en: 'Run on ${name}'
+	String deviceTooltip({required Object name}) => 'Run on ${name}';
+
+	/// en: '${name} is unavailable'
+	String deviceUnavailableTooltip({required Object name}) => '${name} is unavailable';
+
+	/// en: 'No compatible device'
+	String get noDevicesTooltip => 'No compatible device';
+
+	/// en: 'No compatible devices'
+	String get noDevicesMenu => 'No compatible devices';
+
+	/// en: 'Looking for devices…'
+	String get lookingForDevices => 'Looking for devices…';
+
+	/// en: 'Could not list devices. Run remains available; open this menu to retry.'
+	String get deviceDiscoveryFailed => 'Could not list devices. Run remains available; open this menu to retry.';
+
+	/// en: 'Open DevTools'
+	String get openDevTools => 'Open DevTools';
 }
 
 // Path: cockpit.cockpitPage
@@ -742,6 +1305,9 @@ class Translations$cockpit$cockpitPage$en {
 
 	/// en: 'Push — ${label}'
 	String pushTitle({required Object label}) => 'Push — ${label}';
+
+	/// en: 'Switch branch — ${label}'
+	String switchBranchTitle({required Object label}) => 'Switch branch — ${label}';
 
 	/// en: 'Update from Parent — ${name}'
 	String updateFromParentTitle({required Object name}) => 'Update from Parent — ${name}';
@@ -884,6 +1450,9 @@ class Translations$cockpit$paneView$en {
 	/// en: 'Open as markdown'
 	String get openAsMarkdown => 'Open as markdown';
 
+	/// en: 'Edit with Neovim'
+	String get editInNeovim => 'Edit with Neovim';
+
 	/// en: 'Open as board'
 	String get openAsBoard => 'Open as board';
 
@@ -934,6 +1503,12 @@ class Translations$cockpit$paneView$en {
 
 	/// en: 'Open as HTML'
 	String get openAsHtml => 'Open as HTML';
+
+	/// en: 'Open as JSON'
+	String get openAsJson => 'Open as JSON';
+
+	/// en: 'Open as orchestration'
+	String get openAsOrchestration => 'Open as orchestration';
 }
 
 // Path: cockpit.fileTreePanel
@@ -1235,6 +1810,18 @@ class Translations$cockpit$fileTreePanel$en {
 	/// en: 'No changes.'
 	String get diffNoChanges => 'No changes.';
 
+	/// en: 'Side by Side'
+	String get diffSideBySide => 'Side by Side';
+
+	/// en: 'Inline'
+	String get diffInline => 'Inline';
+
+	/// en: 'Modified content'
+	String get diffModifiedContent => 'Modified content';
+
+	/// en: 'The modified file is empty because it was deleted.'
+	String get diffDeletedContent => 'The modified file is empty because it was deleted.';
+
 	/// en: 'Could not read the diff: ${detail}'
 	String diffError({required Object detail}) => 'Could not read the diff: ${detail}';
 
@@ -1261,6 +1848,27 @@ class Translations$cockpit$fileTreePanel$en {
 
 	/// en: 'Open in ${harness}'
 	String openInAgent({required Object harness}) => 'Open in ${harness}';
+
+	/// en: 'Solution'
+	String get solutionTooltip => 'Solution';
+
+	/// en: 'Explorer'
+	String get explorerTooltip => 'Explorer';
+
+	/// en: 'Switch solution'
+	String get switchSolution => 'Switch solution';
+
+	/// en: 'Loading solution…'
+	String get loadingSolution => 'Loading solution…';
+
+	/// en: 'Couldn't read the solution.'
+	String get solutionLoadFailed => 'Couldn\'t read the solution.';
+
+	/// en: '(one) {1 project} (other) {${n} projects}'
+	String projectCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n,
+		one: '1 project',
+		other: '${n} projects',
+	);
 }
 
 // Path: cockpit.fileViewer
@@ -1270,6 +1878,15 @@ class Translations$cockpit$fileViewer$en {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
+
+	/// en: 'Save as'
+	String get saveAs => 'Save as';
+
+	/// en: 'Could not save'
+	String get couldNotSave => 'Could not save';
+
+	/// en: 'untitled.txt'
+	String get untitledDefaultName => 'untitled.txt';
 
 	/// en: 'Can't open this file.'
 	String get cantOpen => 'Can\'t open this file.';
@@ -1285,6 +1902,9 @@ class Translations$cockpit$fileViewer$en {
 
 	/// en: 'Reload'
 	String get reload => 'Reload';
+
+	/// en: 'Diagram error'
+	String get mermaidError => 'Diagram error';
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -1514,6 +2134,9 @@ class Translations$cockpit$httpView$en {
 
 	// Translations
 
+	/// en: 'Copy as cURL'
+	String get copyCurl => 'Copy as cURL';
+
 	/// en: 'Save request as'
 	String get saveRequestAs => 'Save request as';
 
@@ -1523,8 +2146,59 @@ class Translations$cockpit$httpView$en {
 	/// en: 'Run'
 	String get run => 'Run';
 
+	/// en: 'Run All'
+	String get runAll => 'Run All';
+
+	/// en: 'Expand to edit'
+	String get expandToEdit => 'Expand to edit';
+
+	/// en: 'No matching variables'
+	String get noMatchingVariables => 'No matching variables';
+
+	/// en: 'No suggestions for this expression'
+	String get noScriptSuggestions => 'No suggestions for this expression';
+
 	/// en: 'Running…'
 	String get running => 'Running…';
+
+	/// en: 'No Environment'
+	String get noEnvironment => 'No Environment';
+
+	/// en: 'Temporary'
+	String get overrideTemporary => 'Temporary';
+
+	/// en: 'HTTP file'
+	String get overrideFile => 'HTTP file';
+
+	/// en: 'Environment'
+	String get overrideEnvironment => 'Environment';
+
+	/// en: 'Global'
+	String get overrideGlobal => 'Global';
+
+	/// en: 'Restore'
+	String get overrideRestore => 'Restore';
+
+	/// en: 'Apply'
+	String get overrideApply => 'Apply';
+
+	/// en: 'Invalid number'
+	String get overrideInvalidNumber => 'Invalid number';
+
+	/// en: 'Enter a finite number'
+	String get overrideNonFiniteNumber => 'Enter a finite number';
+
+	/// en: 'Use true or false'
+	String get overrideInvalidBoolean => 'Use true or false';
+
+	/// en: 'Invalid JSON'
+	String get overrideInvalidJson => 'Invalid JSON';
+
+	/// en: 'No environment selected. Cannot resolve variable '${name}'.'
+	String unresolvedVariableNoEnvironment({required Object name}) => 'No environment selected. Cannot resolve variable \'${name}\'.';
+
+	/// en: 'Variable '${name}' is not defined in environment '${environment}'.'
+	String unresolvedVariableInEnvironment({required Object name, required Object environment}) => 'Variable \'${name}\' is not defined in environment \'${environment}\'.';
 
 	/// en: 'No request in this file — write one, e.g. GET https://example.com'
 	String get noRequests => 'No request in this file — write one, e.g. GET https://example.com';
@@ -1538,11 +2212,23 @@ class Translations$cockpit$httpView$en {
 		other: '${n} requests',
 	);
 
-	/// en: 'Run the request (⌘↵) to see the response here.'
-	String get runHint => 'Run the request (⌘↵) to see the response here.';
+	/// en: 'Run this request to see its response here.'
+	String get runHint => 'Run this request to see its response here.';
 
 	/// en: 'Empty response body.'
 	String get emptyBody => 'Empty response body.';
+
+	/// en: 'Response'
+	String get response => 'Response';
+
+	/// en: 'Copy content'
+	String get copyResponse => 'Copy content';
+
+	/// en: 'Save response'
+	String get saveResponse => 'Save response';
+
+	/// en: 'Clear response'
+	String get clearResponse => 'Clear response';
 
 	/// en: 'JSON'
 	String get body => 'JSON';
@@ -1552,6 +2238,18 @@ class Translations$cockpit$httpView$en {
 
 	/// en: 'Text'
 	String get raw => 'Text';
+
+	/// en: 'Tests'
+	String get tests => 'Tests';
+
+	/// en: 'Script'
+	String get script => 'Script';
+
+	/// en: 'No tests registered.'
+	String get noTests => 'No tests registered.';
+
+	/// en: 'No script output.'
+	String get noScriptOutput => 'No script output.';
 
 	/// en: ' · truncated (response too large)'
 	String get truncatedSuffix => ' · truncated (response too large)';
@@ -2007,6 +2705,9 @@ class Translations$cockpit$projectsRail$en {
 	/// en: 'Push'
 	String get push => 'Push';
 
+	/// en: 'Switch branch…'
+	String get switchBranch => 'Switch branch…';
+
 	/// en: 'Create worktree'
 	String get createWorktree => 'Create worktree';
 
@@ -2405,6 +3106,7 @@ class Translations$cockpit$gallery$en {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
+	late final Translations$cockpit$gallery$board$en board = Translations$cockpit$gallery$board$en.internal(_root);
 
 	/// en: 'Special Cockpit documents that give you a visual of what the AI agent is doing.'
 	String get intro => 'Special Cockpit documents that give you a visual of what the AI agent is doing.';
@@ -2421,6 +3123,7 @@ class Translations$cockpit$gallery$en {
 	late final Translations$cockpit$gallery$notebook$en notebook = Translations$cockpit$gallery$notebook$en.internal(_root);
 	late final Translations$cockpit$gallery$workspaceEnv$en workspaceEnv = Translations$cockpit$gallery$workspaceEnv$en.internal(_root);
 	late final Translations$cockpit$gallery$panel$en panel = Translations$cockpit$gallery$panel$en.internal(_root);
+	late final Translations$cockpit$gallery$orchestration$en orchestration = Translations$cockpit$gallery$orchestration$en.internal(_root);
 }
 
 // Path: cockpit.notebook
@@ -2767,6 +3470,87 @@ class Translations$cockpit$panelView$en {
 	String get openAsHtml => 'Open as HTML';
 }
 
+// Path: cockpit.cloneRepoDialog
+class Translations$cockpit$cloneRepoDialog$en {
+	Translations$cockpit$cloneRepoDialog$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Clone repository'
+	String get menuItem => 'Clone repository';
+
+	/// en: 'Clone Git repository'
+	String get title => 'Clone Git repository';
+
+	/// en: 'Repository URL (SSH or HTTPS)'
+	String get urlLabel => 'Repository URL (SSH or HTTPS)';
+
+	/// en: 'git@github.com:org/repo.git'
+	String get urlPlaceholder => 'git@github.com:org/repo.git';
+
+	/// en: 'Paste'
+	String get paste => 'Paste';
+
+	/// en: 'Destination folder'
+	String get parentLabel => 'Destination folder';
+
+	/// en: 'Choose…'
+	String get choose => 'Choose…';
+
+	/// en: 'Choose where to clone the repository'
+	String get chooseParentDialogTitle => 'Choose where to clone the repository';
+
+	/// en: 'Folder name'
+	String get folderLabel => 'Folder name';
+
+	/// en: 'Clones into ${path}'
+	String targetPreview({required Object path}) => 'Clones into ${path}';
+
+	/// en: 'Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.'
+	String get errUrl => 'Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.';
+
+	/// en: 'Pick an existing destination folder.'
+	String get errParent => 'Pick an existing destination folder.';
+
+	/// en: 'Folder name required, without / or \.'
+	String get errFolder => 'Folder name required, without / or \.';
+
+	/// en: '${path} already exists and is not empty.'
+	String errExists({required Object path}) => '${path} already exists and is not empty.';
+
+	/// en: 'Clone'
+	String get cloneAction => 'Clone';
+
+	/// en: 'Cloning ${name}'
+	String progressTitle({required Object name}) => 'Cloning ${name}';
+
+	/// en: 'Windows does not allow < > : " | ? * in folder names.'
+	String get errFolderChars => 'Windows does not allow < > : " | ? * in folder names.';
+
+	/// en: '"${name}" is a reserved name on Windows.'
+	String errFolderReserved({required Object name}) => '"${name}" is a reserved name on Windows.';
+
+	/// en: 'On Windows a folder name cannot end with a dot or a space.'
+	String get errFolderTrailing => 'On Windows a folder name cannot end with a dot or a space.';
+
+	/// en: 'Git was not found. Install it and try again: on macOS run xcode-select --install (or brew install git); on Windows install Git for Windows from git-scm.com.'
+	String get hintGitMissing => 'Git was not found. Install it and try again: on macOS run xcode-select --install (or brew install git); on Windows install Git for Windows from git-scm.com.';
+
+	/// en: 'macOS Command Line Tools are missing. Run xcode-select --install in Terminal, then try again.'
+	String get hintXcodeTools => 'macOS Command Line Tools are missing. Run xcode-select --install in Terminal, then try again.';
+
+	/// en: 'SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).'
+	String get hintSshMissing => 'SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).';
+
+	/// en: 'The server's SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.'
+	String get hintHostKey => 'The server\'s SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.';
+
+	/// en: 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).'
+	String get hintAuth => 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).';
+}
+
 // Path: settings.language
 class Translations$settings$language$en {
 	Translations$settings$language$en.internal(this._root);
@@ -2789,6 +3573,9 @@ class Translations$settings$language$en {
 
 	/// en: 'Español'
 	String get spanish => 'Español';
+
+	/// en: '简体中文'
+	String get simplifiedChinese => '简体中文';
 }
 
 // Path: settings.page
@@ -2800,6 +3587,7 @@ class Translations$settings$page$en {
 	// Translations
 	late final Translations$settings$page$header$en header = Translations$settings$page$header$en.internal(_root);
 	late final Translations$settings$page$nav$en nav = Translations$settings$page$nav$en.internal(_root);
+	late final Translations$settings$page$explorer$en explorer = Translations$settings$page$explorer$en.internal(_root);
 	late final Translations$settings$page$general$en general = Translations$settings$page$general$en.internal(_root);
 	late final Translations$settings$page$diagnostics$en diagnostics = Translations$settings$page$diagnostics$en.internal(_root);
 	late final Translations$settings$page$storage$en storage = Translations$settings$page$storage$en.internal(_root);
@@ -3114,6 +3902,207 @@ class Translations$cockpit$kanbanView$deleteColumnDialog$en {
 	String get emptyMessage => 'This column is empty.';
 }
 
+// Path: cockpit.gallery.board
+class Translations$cockpit$gallery$board$en {
+	Translations$cockpit$gallery$board$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Edit text'
+	String get editObjectText => 'Edit text';
+
+	/// en: 'Line width'
+	String get strokeWidth => 'Line width';
+
+	/// en: 'Width of selected lines'
+	String get selectedLineWidth => 'Width of selected lines';
+
+	/// en: 'Bring to front'
+	String get bringFront => 'Bring to front';
+
+	/// en: 'Send to back'
+	String get sendBack => 'Send to back';
+
+	/// en: 'The selection changed. Open the menu again.'
+	String get menuChanged => 'The selection changed. Open the menu again.';
+
+	/// en: 'Import or export'
+	String get fileActions => 'Import or export';
+
+	/// en: 'Export entire document'
+	String get exportDocument => 'Export entire document';
+
+	/// en: 'Export selection'
+	String get exportSelection => 'Export selection';
+
+	/// en: 'Add this board to the canvas?'
+	String get appendBoard => 'Add this board to the canvas?';
+
+	/// en: 'Fit document'
+	String get fitDocument => 'Fit document';
+
+	/// en: 'Fit selection'
+	String get fitSelection => 'Fit selection';
+
+	/// en: 'Diagram color'
+	String get diagramColor => 'Diagram color';
+
+	/// en: 'Theme default'
+	String get themeColor => 'Theme default';
+
+	/// en: 'Blue'
+	String get blue => 'Blue';
+
+	/// en: 'Green'
+	String get green => 'Green';
+
+	/// en: 'Amber'
+	String get amber => 'Amber';
+
+	/// en: 'Red'
+	String get red => 'Red';
+
+	/// en: 'Violet'
+	String get violet => 'Violet';
+
+	/// en: 'Cyan'
+	String get cyan => 'Cyan';
+
+	/// en: 'Choose a shape and click or drag to draw it.'
+	String get emptyBoard => 'Choose a shape and click or drag to draw it.';
+
+	/// en: 'Choose the first shape, or drag to the destination.'
+	String get arrowStart => 'Choose the first shape, or drag to the destination.';
+
+	/// en: 'Tab selects objects · Arrows move · Shift ×10 · C connects'
+	String get keyboardHelp => 'Tab selects objects · Arrows move · Shift ×10 · C connects';
+
+	/// en: 'Move here'
+	String get moveHere => 'Move here';
+
+	/// en: 'Click where to place the selection · Esc cancels'
+	String get moveDestination => 'Click where to place the selection · Esc cancels';
+
+	/// en: 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.'
+	String keyboardTarget({required Object target}) => 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.';
+
+	/// en: 'From ${from} to ${to}'
+	String connectorEndpoints({required Object from, required Object to}) => 'From ${from} to ${to}';
+
+	/// en: 'Choose the destination shape.'
+	String get arrowEnd => 'Choose the destination shape.';
+
+	/// en: 'Diagram types'
+	String get diagramTypes => 'Diagram types';
+
+	/// en: 'Replace the current source with this example?'
+	String get replaceSource => 'Replace the current source with this example?';
+
+	/// en: 'Group'
+	String get group => 'Group';
+
+	/// en: 'Ungroup'
+	String get ungroup => 'Ungroup';
+
+	/// en: 'Align top'
+	String get align => 'Align top';
+
+	/// en: 'Distribute horizontally'
+	String get distribute => 'Distribute horizontally';
+
+	/// en: 'Open'
+	String get openFile => 'Open';
+
+	/// en: 'Export'
+	String get exportFile => 'Export';
+
+	/// en: 'Import editable shapes and connectors? Styles, groups and unsupported object details may change.'
+	String get importWarning => 'Import editable shapes and connectors? Styles, groups and unsupported object details may change.';
+
+	/// en: 'Export shapes and connectors? The conversion simplifies styles, groups, and Mermaid drawings.'
+	String get exportWarning => 'Export shapes and connectors? The conversion simplifies styles, groups, and Mermaid drawings.';
+
+	/// en: 'Discard'
+	String get discard => 'Discard';
+
+	/// en: 'Open Mermaid file'
+	String get importMmd => 'Open Mermaid file';
+
+	/// en: 'Export Mermaid source'
+	String get exportMmd => 'Export Mermaid source';
+
+	/// en: 'Preview'
+	String get preview => 'Preview';
+
+	/// en: 'Apply'
+	String get apply => 'Apply';
+
+	/// en: 'Canvas Board'
+	String get title => 'Canvas Board';
+
+	/// en: 'Draw flowcharts and sketches'
+	String get description => 'Draw flowcharts and sketches';
+
+	/// en: 'Select'
+	String get select => 'Select';
+
+	/// en: 'Pan'
+	String get pan => 'Pan';
+
+	/// en: 'Pencil'
+	String get pencil => 'Pencil';
+
+	/// en: 'Text'
+	String get text => 'Text';
+
+	/// en: 'Note'
+	String get note => 'Note';
+
+	/// en: 'Process'
+	String get process => 'Process';
+
+	/// en: 'Decision'
+	String get decision => 'Decision';
+
+	/// en: 'Connector'
+	String get arrow => 'Connector';
+
+	/// en: 'Advanced'
+	String get advanced => 'Advanced';
+
+	/// en: 'Lane'
+	String get lane => 'Lane';
+
+	/// en: 'Container'
+	String get container => 'Container';
+
+	/// en: 'Service'
+	String get service => 'Service';
+
+	/// en: 'Undo'
+	String get undo => 'Undo';
+
+	/// en: 'Delete'
+	String get delete => 'Delete';
+
+	/// en: 'Label'
+	String get label => 'Label';
+
+	/// en: 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.'
+	String get labelChanged => 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.';
+
+	/// en: 'This object was deleted from the file. Copy your draft before pressing Esc to close it.'
+	String get objectDeleted => 'This object was deleted from the file. Copy your draft before pressing Esc to close it.';
+
+	/// en: 'Could not save the board'
+	String get saveError => 'Could not save the board';
+
+	/// en: 'Reload'
+	String get reload => 'Reload';
+}
+
 // Path: cockpit.gallery.dbQuery
 class Translations$cockpit$gallery$dbQuery$en {
 	Translations$cockpit$gallery$dbQuery$en.internal(this._root);
@@ -3249,6 +4238,21 @@ class Translations$cockpit$gallery$panel$en {
 	String get description => 'An HTML page with a bridge to the app: its buttons run Cockpit CLI and shell commands on this machine. A playground for quick dashboards.';
 }
 
+// Path: cockpit.gallery.orchestration
+class Translations$cockpit$gallery$orchestration$en {
+	Translations$cockpit$gallery$orchestration$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Agent Orchestration'
+	String get title => 'Agent Orchestration';
+
+	/// en: 'Manage terminal boxes and their connections in a portable worktree document.'
+	String get description => 'Manage terminal boxes and their connections in a portable worktree document.';
+}
+
 // Path: cockpit.notebook.format
 class Translations$cockpit$notebook$format$en {
 	Translations$cockpit$notebook$format$en.internal(this._root);
@@ -3332,6 +4336,9 @@ class Translations$settings$page$nav$en {
 
 	// Translations
 
+	/// en: 'Explorer'
+	String get explorer => 'Explorer';
+
 	/// en: 'General'
 	String get general => 'General';
 
@@ -3355,6 +4362,48 @@ class Translations$settings$page$nav$en {
 
 	/// en: 'Remote hosts'
 	String get remoteHosts => 'Remote hosts';
+}
+
+// Path: settings.page.explorer
+class Translations$settings$page$explorer$en {
+	Translations$settings$page$explorer$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'File nesting'
+	String get sectionNesting => 'File nesting';
+
+	/// en: 'Enable file nesting'
+	String get enabledTitle => 'Enable file nesting';
+
+	/// en: 'Group related files under their parent file.'
+	String get enabledDesc => 'Group related files under their parent file.';
+
+	/// en: 'Auto expand'
+	String get autoExpandTitle => 'Auto expand';
+
+	/// en: 'Open nested groups when the explorer loads.'
+	String get autoExpandDesc => 'Open nested groups when the explorer loads.';
+
+	/// en: 'New pattern'
+	String get newPattern => 'New pattern';
+
+	/// en: 'Patterns'
+	String get patternsTitle => 'Patterns';
+
+	/// en: 'Parent pattern on the left; comma-separated child patterns on the right. Use * in the parent; child patterns may use:'
+	String get patternsDesc => 'Parent pattern on the left; comma-separated child patterns on the right. Use * in the parent; child patterns may use:';
+
+	/// en: 'Parent pattern'
+	String get parentPlaceholder => 'Parent pattern';
+
+	/// en: 'Nested files'
+	String get childrenPlaceholder => 'Nested files';
+
+	/// en: 'Remove pattern'
+	String get remove => 'Remove pattern';
 }
 
 // Path: settings.page.general
@@ -3385,6 +4434,14 @@ class Translations$settings$page$general$en {
 
 	/// en: 'Check again'
 	String get neovimRefresh => 'Check again';
+
+	/// en: 'Word wrap'
+	String get wordWrapTitle => 'Word wrap';
+
+	/// en: 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.'
+	String get wordWrapDesc => 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.';
+
+	late final Translations$settings$page$general$wordWrap$en wordWrap = Translations$settings$page$general$wordWrap$en.internal(_root);
 
 	/// en: 'Show Cockpit terminal'
 	String get showCockpitTitle => 'Show Cockpit terminal';
@@ -3935,6 +4992,24 @@ class Translations$settings$page$automations$en {
 	String get recommendedSuffix => 'Recommended';
 }
 
+// Path: settings.page.general.wordWrap
+class Translations$settings$page$general$wordWrap$en {
+	Translations$settings$page$general$wordWrap$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Markdown and text'
+	String get byLanguage => 'Markdown and text';
+
+	/// en: 'All files'
+	String get always => 'All files';
+
+	/// en: 'Off'
+	String get off => 'Off';
+}
+
 // Path: settings.page.general.updateFrequency
 class Translations$settings$page$general$updateFrequency$en {
 	Translations$settings$page$general$updateFrequency$en.internal(this._root);
@@ -3964,6 +5039,7 @@ class Translations$settings$page$general$updateFrequency$en {
 extension on Translations {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => 'Could not copy to the clipboard. Try again.',
 			'core.bootstrapError.title' => 'Failed to initialize Cockpit',
 			'core.bootstrapError.retry' => 'Retry',
 			'core.macosNotifications.title' => 'Enable Notifications on macOS',
@@ -3994,6 +5070,7 @@ extension on Translations {
 			'core.menu.checkForUpdates' => 'Check for Updates…',
 			'core.menu.file' => 'File',
 			'core.menu.newTerminal' => 'New Terminal',
+			'core.menu.newFile' => 'New File',
 			'core.menu.openWorkspace' => 'Open Workspace',
 			'core.menu.goToFile' => 'Go to File…',
 			'core.menu.save' => 'Save',
@@ -4014,6 +5091,7 @@ extension on Translations {
 			'core.menu.lastTab' => 'Last Tab',
 			'core.menu.previousWorkspace' => 'Previous Workspace',
 			'core.menu.nextWorkspace' => 'Next Workspace',
+			'core.menu.toggleWordWrap' => 'Toggle Word Wrap',
 			'core.menu.zoomIn' => 'Zoom In',
 			'core.menu.zoomOut' => 'Zoom Out',
 			'core.menu.actualSize' => 'Actual Size',
@@ -4080,6 +5158,14 @@ extension on Translations {
 			'cockpit.worktreeCreateDialog.fetchRemoteDesc' => 'Run git fetch to guarantee the base branch is confirmed before creating the worktree.',
 			'cockpit.worktreeCreateDialog.searchBranch' => 'Search branch...',
 			'cockpit.worktreeCreateDialog.back' => 'Back',
+			'cockpit.branchSwitchDialog.title' => ({required Object label}) => 'Switch branch — ${label}',
+			'cockpit.branchSwitchDialog.subtitle' => ({required Object current}) => 'Current branch: ${current}',
+			'cockpit.branchSwitchDialog.search' => 'Search branches...',
+			'cockpit.branchSwitchDialog.local' => 'Local branches',
+			'cockpit.branchSwitchDialog.remote' => 'Remote branches',
+			'cockpit.branchSwitchDialog.switchAction' => 'Switch',
+			'cockpit.branchSwitchDialog.empty' => 'No branches found.',
+			'cockpit.branchSwitchDialog.current' => 'current',
 			'cockpit.commitMessageDialog.commitTitle' => 'Commit',
 			'cockpit.commitMessageDialog.stageAndCommitTitle' => 'Stage and Commit',
 			'cockpit.commitMessageDialog.scopeNote' => ({required Object fileName}) => 'Commit "${fileName}" only.',
@@ -4106,12 +5192,26 @@ extension on Translations {
 			'cockpit.tasksPanel.sectionTasks' => 'TASKS',
 			'cockpit.tasksPanel.noTasks' => 'No tasks detected in this project.',
 			'cockpit.tasksPanel.createTasksJson' => 'Create tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Import from workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importing tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'The source workspace has no tasks file.',
+			'cockpit.tasksPanel.importFailed' => 'Could not import tasks. Try again.',
+			'cockpit.tasksPanel.copy' => 'Copy',
+			'cockpit.tasksPanel.copyAll' => 'Copy All',
+			'cockpit.tasksPanel.clearConsole' => 'Clear Console',
 			'cockpit.tasksPanel.generateComposeTasks' => 'Generate Compose tasks',
 			'cockpit.tasksPanel.selectComposeEngine' => 'Choose a Compose engine',
 			'cockpit.tasksPanel.noComposeEngine' => 'Docker Compose or Podman Compose was not found.',
 			'cockpit.tasksPanel.invalidComposeFile' => 'The active file is not a valid Compose file with services.',
 			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json is invalid. No changes were written.',
 			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => 'Kept non-Compose tasks with conflicting labels: ${labels}',
+			'cockpit.tasksPanel.deviceTooltip' => ({required Object name}) => 'Run on ${name}',
+			'cockpit.tasksPanel.deviceUnavailableTooltip' => ({required Object name}) => '${name} is unavailable',
+			'cockpit.tasksPanel.noDevicesTooltip' => 'No compatible device',
+			'cockpit.tasksPanel.noDevicesMenu' => 'No compatible devices',
+			'cockpit.tasksPanel.lookingForDevices' => 'Looking for devices…',
+			'cockpit.tasksPanel.deviceDiscoveryFailed' => 'Could not list devices. Run remains available; open this menu to retry.',
+			'cockpit.tasksPanel.openDevTools' => 'Open DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Choose the project folder',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Choose the workspace folder',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renamed',
@@ -4119,6 +5219,7 @@ extension on Translations {
 			'cockpit.cockpitPage.syncTitle' => ({required Object label}) => 'Sync — ${label}',
 			'cockpit.cockpitPage.pullTitle' => ({required Object label}) => 'Pull — ${label}',
 			'cockpit.cockpitPage.pushTitle' => ({required Object label}) => 'Push — ${label}',
+			'cockpit.cockpitPage.switchBranchTitle' => ({required Object label}) => 'Switch branch — ${label}',
 			'cockpit.cockpitPage.updateFromParentTitle' => ({required Object name}) => 'Update from Parent — ${name}',
 			'cockpit.cockpitPage.mergeToParentTitle' => ({required Object name}) => 'Merge to Parent — ${name}',
 			'cockpit.cockpitPage.worktreeMergedAndRemoved' => 'Worktree merged and removed.',
@@ -4159,6 +5260,7 @@ extension on Translations {
 			'cockpit.paneView.openInNewWindow' => 'Open in new window',
 			'cockpit.paneView.rename' => 'Rename',
 			'cockpit.paneView.openAsMarkdown' => 'Open as markdown',
+			'cockpit.paneView.editInNeovim' => 'Edit with Neovim',
 			'cockpit.paneView.openAsBoard' => 'Open as board',
 			'cockpit.paneView.resetTitle' => 'Reset Title',
 			'cockpit.paneView.copyId' => 'Copy Id',
@@ -4176,6 +5278,8 @@ extension on Translations {
 			'cockpit.paneView.openAsYaml' => 'Open as YAML',
 			'cockpit.paneView.openAsPanel' => 'Open as panel',
 			'cockpit.paneView.openAsHtml' => 'Open as HTML',
+			'cockpit.paneView.openAsJson' => 'Open as JSON',
+			'cockpit.paneView.openAsOrchestration' => 'Open as orchestration',
 			'cockpit.fileTreePanel.viewDiff' => 'View Diff',
 			'cockpit.fileTreePanel.commit' => 'Commit',
 			'cockpit.fileTreePanel.stageAndCommit' => 'Stage and Commit',
@@ -4273,6 +5377,10 @@ extension on Translations {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Working tree',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Binary file - no text diff.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'No changes.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Side by Side',
+			'cockpit.fileTreePanel.diffInline' => 'Inline',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Modified content',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'The modified file is empty because it was deleted.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'Could not read the diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Gallery',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALLERY',
@@ -4282,11 +5390,21 @@ extension on Translations {
 			'cockpit.fileTreePanel.importAction' => 'Copy',
 			'cockpit.fileTreePanel.couldNotImportTitle' => 'Could not copy',
 			'cockpit.fileTreePanel.openInAgent' => ({required Object harness}) => 'Open in ${harness}',
+			'cockpit.fileTreePanel.solutionTooltip' => 'Solution',
+			'cockpit.fileTreePanel.explorerTooltip' => 'Explorer',
+			'cockpit.fileTreePanel.switchSolution' => 'Switch solution',
+			'cockpit.fileTreePanel.loadingSolution' => 'Loading solution…',
+			'cockpit.fileTreePanel.solutionLoadFailed' => 'Couldn\'t read the solution.',
+			'cockpit.fileTreePanel.projectCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 project', other: '${n} projects', ), 
+			'cockpit.fileViewer.saveAs' => 'Save as',
+			'cockpit.fileViewer.couldNotSave' => 'Could not save',
+			'cockpit.fileViewer.untitledDefaultName' => 'untitled.txt',
 			'cockpit.fileViewer.cantOpen' => 'Can\'t open this file.',
 			'cockpit.fileViewer.couldNotLoadImage' => 'Could not load the image.',
 			'cockpit.fileViewer.preview' => 'Preview',
 			'cockpit.fileViewer.source' => 'Source',
 			'cockpit.fileViewer.reload' => 'Reload',
+			'cockpit.fileViewer.mermaidError' => 'Diagram error',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => 'Choose workspace photo',
 			'cockpit.workspaceSettingsDialog.title' => 'Workspace settings',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => 'Workspace name',
@@ -4345,18 +5463,44 @@ extension on Translations {
 			'cockpit.dbQueryView.saved' => 'saved',
 			'cockpit.dbQueryView.copied' => 'Copied',
 			'cockpit.dbQueryView.copy' => 'Copy',
+			'cockpit.httpView.copyCurl' => 'Copy as cURL',
 			'cockpit.httpView.saveRequestAs' => 'Save request as',
 			'cockpit.httpView.couldNotSave' => 'Could not save',
 			'cockpit.httpView.run' => 'Run',
+			'cockpit.httpView.runAll' => 'Run All',
+			'cockpit.httpView.expandToEdit' => 'Expand to edit',
+			'cockpit.httpView.noMatchingVariables' => 'No matching variables',
+			'cockpit.httpView.noScriptSuggestions' => 'No suggestions for this expression',
 			'cockpit.httpView.running' => 'Running…',
+			'cockpit.httpView.noEnvironment' => 'No Environment',
+			'cockpit.httpView.overrideTemporary' => 'Temporary',
+			'cockpit.httpView.overrideFile' => 'HTTP file',
+			'cockpit.httpView.overrideEnvironment' => 'Environment',
+			'cockpit.httpView.overrideGlobal' => 'Global',
+			'cockpit.httpView.overrideRestore' => 'Restore',
+			'cockpit.httpView.overrideApply' => 'Apply',
+			'cockpit.httpView.overrideInvalidNumber' => 'Invalid number',
+			'cockpit.httpView.overrideNonFiniteNumber' => 'Enter a finite number',
+			'cockpit.httpView.overrideInvalidBoolean' => 'Use true or false',
+			'cockpit.httpView.overrideInvalidJson' => 'Invalid JSON',
+			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No environment selected. Cannot resolve variable \'${name}\'.',
+			'cockpit.httpView.unresolvedVariableInEnvironment' => ({required Object name, required Object environment}) => 'Variable \'${name}\' is not defined in environment \'${environment}\'.',
 			'cockpit.httpView.noRequests' => 'No request in this file — write one, e.g. GET https://example.com',
 			'cockpit.httpView.selectRequest' => 'Select request',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 request', other: '${n} requests', ), 
-			'cockpit.httpView.runHint' => 'Run the request (⌘↵) to see the response here.',
+			'cockpit.httpView.runHint' => 'Run this request to see its response here.',
 			'cockpit.httpView.emptyBody' => 'Empty response body.',
+			'cockpit.httpView.response' => 'Response',
+			'cockpit.httpView.copyResponse' => 'Copy content',
+			'cockpit.httpView.saveResponse' => 'Save response',
+			'cockpit.httpView.clearResponse' => 'Clear response',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => 'Headers',
 			'cockpit.httpView.raw' => 'Text',
+			'cockpit.httpView.tests' => 'Tests',
+			'cockpit.httpView.script' => 'Script',
+			'cockpit.httpView.noTests' => 'No tests registered.',
+			'cockpit.httpView.noScriptOutput' => 'No script output.',
 			'cockpit.httpView.truncatedSuffix' => ' · truncated (response too large)',
 			'cockpit.httpView.error.title' => 'Request failed',
 			'cockpit.httpView.error.noRequest' => 'No request found at the cursor.',
@@ -4407,6 +5551,8 @@ extension on Translations {
 			'cockpit.kanbanView.emptyColumn' => 'No cards',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 card', other: '${n} cards', ), 
 			'cockpit.kanbanView.notes' => 'Note',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.notesPlaceholder' => 'Write a note',
 			'cockpit.kanbanView.comments' => 'Comments',
 			'cockpit.kanbanView.addComment' => 'Add comment',
@@ -4476,8 +5622,6 @@ extension on Translations {
 			'cockpit.sshPrompts.trustHint' => 'Trust it only if this fingerprint matches the server. You can check it on the server with:',
 			'cockpit.sshPrompts.trust' => 'Trust',
 			'cockpit.sshPrompts.sshKeyPassphraseTitle' => 'SSH key passphrase',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.sshPrompts.unlockMessage' => ({required Object keyPath, required Object connectionName}) => 'Unlock ${keyPath} to connect "${connectionName}".',
 			'cockpit.sshPrompts.keptInMemoryHint' => 'Kept in memory until Cockpit quits. To let agents use this connection, enable "Save passphrase" in the connection.',
 			'cockpit.sshPrompts.unlock' => 'Unlock',
@@ -4503,6 +5647,7 @@ extension on Translations {
 			'cockpit.projectsRail.sync' => 'Sync',
 			'cockpit.projectsRail.pull' => 'Pull',
 			'cockpit.projectsRail.push' => 'Push',
+			'cockpit.projectsRail.switchBranch' => 'Switch branch…',
 			'cockpit.projectsRail.createWorktree' => 'Create worktree',
 			'cockpit.projectsRail.worktreeCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 worktree', other: '${n} worktrees', ), 
 			'cockpit.projectsRail.expandWorktrees' => 'Expand worktrees',
@@ -4602,6 +5747,70 @@ extension on Translations {
 			'cockpit.browserPane.go' => 'Go',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio and video open in the main Cockpit window.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'File not found: ${path}',
+			'cockpit.gallery.board.editObjectText' => 'Edit text',
+			'cockpit.gallery.board.strokeWidth' => 'Line width',
+			'cockpit.gallery.board.selectedLineWidth' => 'Width of selected lines',
+			'cockpit.gallery.board.bringFront' => 'Bring to front',
+			'cockpit.gallery.board.sendBack' => 'Send to back',
+			'cockpit.gallery.board.menuChanged' => 'The selection changed. Open the menu again.',
+			'cockpit.gallery.board.fileActions' => 'Import or export',
+			'cockpit.gallery.board.exportDocument' => 'Export entire document',
+			'cockpit.gallery.board.exportSelection' => 'Export selection',
+			'cockpit.gallery.board.appendBoard' => 'Add this board to the canvas?',
+			'cockpit.gallery.board.fitDocument' => 'Fit document',
+			'cockpit.gallery.board.fitSelection' => 'Fit selection',
+			'cockpit.gallery.board.diagramColor' => 'Diagram color',
+			'cockpit.gallery.board.themeColor' => 'Theme default',
+			'cockpit.gallery.board.blue' => 'Blue',
+			'cockpit.gallery.board.green' => 'Green',
+			'cockpit.gallery.board.amber' => 'Amber',
+			'cockpit.gallery.board.red' => 'Red',
+			'cockpit.gallery.board.violet' => 'Violet',
+			'cockpit.gallery.board.cyan' => 'Cyan',
+			'cockpit.gallery.board.emptyBoard' => 'Choose a shape and click or drag to draw it.',
+			'cockpit.gallery.board.arrowStart' => 'Choose the first shape, or drag to the destination.',
+			'cockpit.gallery.board.keyboardHelp' => 'Tab selects objects · Arrows move · Shift ×10 · C connects',
+			'cockpit.gallery.board.moveHere' => 'Move here',
+			'cockpit.gallery.board.moveDestination' => 'Click where to place the selection · Esc cancels',
+			'cockpit.gallery.board.keyboardTarget' => ({required Object target}) => 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.',
+			'cockpit.gallery.board.connectorEndpoints' => ({required Object from, required Object to}) => 'From ${from} to ${to}',
+			'cockpit.gallery.board.arrowEnd' => 'Choose the destination shape.',
+			'cockpit.gallery.board.diagramTypes' => 'Diagram types',
+			'cockpit.gallery.board.replaceSource' => 'Replace the current source with this example?',
+			'cockpit.gallery.board.group' => 'Group',
+			'cockpit.gallery.board.ungroup' => 'Ungroup',
+			'cockpit.gallery.board.align' => 'Align top',
+			'cockpit.gallery.board.distribute' => 'Distribute horizontally',
+			'cockpit.gallery.board.openFile' => 'Open',
+			'cockpit.gallery.board.exportFile' => 'Export',
+			'cockpit.gallery.board.importWarning' => 'Import editable shapes and connectors? Styles, groups and unsupported object details may change.',
+			'cockpit.gallery.board.exportWarning' => 'Export shapes and connectors? The conversion simplifies styles, groups, and Mermaid drawings.',
+			'cockpit.gallery.board.discard' => 'Discard',
+			'cockpit.gallery.board.importMmd' => 'Open Mermaid file',
+			'cockpit.gallery.board.exportMmd' => 'Export Mermaid source',
+			'cockpit.gallery.board.preview' => 'Preview',
+			'cockpit.gallery.board.apply' => 'Apply',
+			'cockpit.gallery.board.title' => 'Canvas Board',
+			'cockpit.gallery.board.description' => 'Draw flowcharts and sketches',
+			'cockpit.gallery.board.select' => 'Select',
+			'cockpit.gallery.board.pan' => 'Pan',
+			'cockpit.gallery.board.pencil' => 'Pencil',
+			'cockpit.gallery.board.text' => 'Text',
+			'cockpit.gallery.board.note' => 'Note',
+			'cockpit.gallery.board.process' => 'Process',
+			'cockpit.gallery.board.decision' => 'Decision',
+			'cockpit.gallery.board.arrow' => 'Connector',
+			'cockpit.gallery.board.advanced' => 'Advanced',
+			'cockpit.gallery.board.lane' => 'Lane',
+			'cockpit.gallery.board.container' => 'Container',
+			'cockpit.gallery.board.service' => 'Service',
+			'cockpit.gallery.board.undo' => 'Undo',
+			'cockpit.gallery.board.delete' => 'Delete',
+			'cockpit.gallery.board.label' => 'Label',
+			'cockpit.gallery.board.labelChanged' => 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.',
+			'cockpit.gallery.board.objectDeleted' => 'This object was deleted from the file. Copy your draft before pressing Esc to close it.',
+			'cockpit.gallery.board.saveError' => 'Could not save the board',
+			'cockpit.gallery.board.reload' => 'Reload',
 			'cockpit.gallery.intro' => 'Special Cockpit documents that give you a visual of what the AI agent is doing.',
 			'cockpit.gallery.createErrorTitle' => 'Could not create the file',
 			'cockpit.gallery.dbQuery.title' => 'Database query',
@@ -4622,6 +5831,8 @@ extension on Translations {
 			'cockpit.gallery.workspaceEnv.description' => 'Variables injected into every terminal of this workspace. Put API tokens or logins here instead of pasting them into the agent\'s prompt. Kept out of git.',
 			'cockpit.gallery.panel.title' => 'Panel',
 			'cockpit.gallery.panel.description' => 'An HTML page with a bridge to the app: its buttons run Cockpit CLI and shell commands on this machine. A playground for quick dashboards.',
+			'cockpit.gallery.orchestration.title' => 'Agent Orchestration',
+			'cockpit.gallery.orchestration.description' => 'Manage terminal boxes and their connections in a portable worktree document.',
 			'cockpit.notebook.notes' => 'Notes',
 			'cockpit.notebook.newNote' => 'New note',
 			'cockpit.notebook.searchPlaceholder' => 'Search notes',
@@ -4741,13 +5952,39 @@ extension on Translations {
 			'cockpit.panelView.unavailable' => 'Panels need the embedded web view, which is not available on Linux yet.',
 			'cockpit.panelView.openInBrowser' => 'Open in browser',
 			'cockpit.panelView.openAsHtml' => 'Open as HTML',
+			'cockpit.cloneRepoDialog.menuItem' => 'Clone repository',
+			'cockpit.cloneRepoDialog.title' => 'Clone Git repository',
+			'cockpit.cloneRepoDialog.urlLabel' => 'Repository URL (SSH or HTTPS)',
+			'cockpit.cloneRepoDialog.urlPlaceholder' => 'git@github.com:org/repo.git',
+			'cockpit.cloneRepoDialog.paste' => 'Paste',
+			'cockpit.cloneRepoDialog.parentLabel' => 'Destination folder',
+			'cockpit.cloneRepoDialog.choose' => 'Choose…',
+			'cockpit.cloneRepoDialog.chooseParentDialogTitle' => 'Choose where to clone the repository',
+			'cockpit.cloneRepoDialog.folderLabel' => 'Folder name',
+			'cockpit.cloneRepoDialog.targetPreview' => ({required Object path}) => 'Clones into ${path}',
+			'cockpit.cloneRepoDialog.errUrl' => 'Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.',
+			'cockpit.cloneRepoDialog.errParent' => 'Pick an existing destination folder.',
+			'cockpit.cloneRepoDialog.errFolder' => 'Folder name required, without / or \.',
+			'cockpit.cloneRepoDialog.errExists' => ({required Object path}) => '${path} already exists and is not empty.',
+			'cockpit.cloneRepoDialog.cloneAction' => 'Clone',
+			'cockpit.cloneRepoDialog.progressTitle' => ({required Object name}) => 'Cloning ${name}',
+			'cockpit.cloneRepoDialog.errFolderChars' => 'Windows does not allow < > : " | ? * in folder names.',
+			'cockpit.cloneRepoDialog.errFolderReserved' => ({required Object name}) => '"${name}" is a reserved name on Windows.',
+			'cockpit.cloneRepoDialog.errFolderTrailing' => 'On Windows a folder name cannot end with a dot or a space.',
+			'cockpit.cloneRepoDialog.hintGitMissing' => 'Git was not found. Install it and try again: on macOS run xcode-select --install (or brew install git); on Windows install Git for Windows from git-scm.com.',
+			'cockpit.cloneRepoDialog.hintXcodeTools' => 'macOS Command Line Tools are missing. Run xcode-select --install in Terminal, then try again.',
+			'cockpit.cloneRepoDialog.hintSshMissing' => 'SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).',
+			'cockpit.cloneRepoDialog.hintHostKey' => 'The server\'s SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.',
+			'cockpit.cloneRepoDialog.hintAuth' => 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).',
 			'settings.language.title' => 'Language',
 			'settings.language.system' => 'System',
 			'settings.language.english' => 'English',
 			'settings.language.portugueseBr' => 'Português (BR)',
 			'settings.language.spanish' => 'Español',
+			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => 'Back',
 			'settings.page.header.title' => 'Settings',
+			'settings.page.nav.explorer' => 'Explorer',
 			'settings.page.nav.general' => 'General',
 			'settings.page.nav.appearance' => 'Appearance',
 			'settings.page.nav.terminal' => 'Terminal',
@@ -4756,6 +5993,17 @@ extension on Translations {
 			'settings.page.nav.notifications' => 'Notifications',
 			'settings.page.nav.automations' => 'Automations',
 			'settings.page.nav.remoteHosts' => 'Remote hosts',
+			'settings.page.explorer.sectionNesting' => 'File nesting',
+			'settings.page.explorer.enabledTitle' => 'Enable file nesting',
+			'settings.page.explorer.enabledDesc' => 'Group related files under their parent file.',
+			'settings.page.explorer.autoExpandTitle' => 'Auto expand',
+			'settings.page.explorer.autoExpandDesc' => 'Open nested groups when the explorer loads.',
+			'settings.page.explorer.newPattern' => 'New pattern',
+			'settings.page.explorer.patternsTitle' => 'Patterns',
+			'settings.page.explorer.patternsDesc' => 'Parent pattern on the left; comma-separated child patterns on the right. Use * in the parent; child patterns may use:',
+			'settings.page.explorer.parentPlaceholder' => 'Parent pattern',
+			'settings.page.explorer.childrenPlaceholder' => 'Nested files',
+			'settings.page.explorer.remove' => 'Remove pattern',
 			'settings.page.general.sectionEditor' => 'Editor',
 			'settings.page.general.editorEngineTitle' => 'Engine',
 			'settings.page.general.editorEngineCockpit' => 'Cockpit (default)',
@@ -4763,6 +6011,11 @@ extension on Translations {
 			'settings.page.general.neovimChecking' => 'Looking for Neovim…',
 			'settings.page.general.neovimNotFound' => 'Neovim was not found in your shell PATH.',
 			'settings.page.general.neovimRefresh' => 'Check again',
+			'settings.page.general.wordWrapTitle' => 'Word wrap',
+			'settings.page.general.wordWrapDesc' => 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.',
+			'settings.page.general.wordWrap.byLanguage' => 'Markdown and text',
+			'settings.page.general.wordWrap.always' => 'All files',
+			'settings.page.general.wordWrap.off' => 'Off',
 			'settings.page.general.showCockpitTitle' => 'Show Cockpit terminal',
 			'settings.page.general.showCockpitDesc' => 'Keep a pathless, terminal-only workspace pinned at the top of the rail. Turning it off closes its terminals.',
 			'settings.page.general.launchAtStartupTitle' => 'Launch at login',
@@ -4812,6 +6065,8 @@ extension on Translations {
 			'settings.page.terminal.shellTitle' => 'Shell',
 			'settings.page.terminal.shellDesc' => 'Which shell new terminal tabs open. The arrow next to + still opens any other one, just for that tab.',
 			'settings.page.terminal.noWslMessage' => 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.terminal.sectionBehavior' => 'Behavior',
 			'settings.page.terminal.closeOnExitTitle' => 'Close tab when the shell exits',
 			'settings.page.terminal.closeOnExitDesc' => 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.',
@@ -4983,6 +6238,49 @@ extension on Translations {
 			'fileOperation.error.nameHasSlash' => 'Name cannot contain “/”.',
 			'fileOperation.error.invalidName' => 'Invalid name.',
 			'fileOperation.error.remoteDropUnsupported' => 'Dropping files into a remote workspace is not supported yet.',
+			'graphSubagent.badge' => 'TEMPORARY SUBAGENT',
+			'graphSubagent.nameFallback' => 'Subagent',
+			'graphSubagent.active' => '● running',
+			'graphSubagent.disconnected' => '◌ host disconnected',
+			'graphSubagent.tooltip' => ({required Object type, required Object id, required Object harness, required Object tab, required Object time}) => 'Temporary subagent: ${type}\nID: ${id}\nTool: ${harness}\nControlled by tab ${tab}\nStarted: ${time}\nTokens/context: unavailable from this hook\nSource: SubagentStart hook',
+			'graphView.legend' => 'LEGEND',
+			'graphView.working' => 'Working',
+			'graphView.waiting' => 'Waiting',
+			'graphView.idle' => 'Idle',
+			'graphView.starting' => 'Starting',
+			'graphView.ended' => 'Ended',
+			'graphView.disconnected' => 'Host disconnected',
+			'graphView.unknown' => 'Unknown',
+			'graphView.planned' => 'Planned link',
+			'graphView.observed' => 'Observed exchange',
+			'graphView.temporary' => 'Temporary subagent',
+			'graphView.unresolvedPeer' => 'Claude recipient',
+			'graphView.unresolvedPeerHint' => 'Tab not identified yet',
+			'graphView.unresolvedPeerTooltip' => ({required Object address}) => 'Message observed for ${address}. Cockpit has not identified a matching tab, so no terminal connection was assumed.',
+			'graphView.noRole' => 'No role defined',
+			'graphView.terminal' => 'Terminal',
+			'graphView.defaultModel' => 'Default model',
+			'graphView.context' => ({required Object percent}) => 'Context ${percent}%',
+			'graphView.contextUnavailable' => 'Context unavailable',
+			'graphView.compactHint' => 'Compaction suggested',
+			'graphView.handoffHint' => 'Prepare a handoff',
+			'graphView.connections' => 'Connections',
+			'graphView.noConnections' => 'No planned connections',
+			'graphView.openTerminal' => 'Open terminal',
+			'graphView.controlledBy' => 'Controlled by the parent terminal',
+			'graphView.tokens' => ({required Object count}) => 'Tokens: ${count}',
+			'graphView.metrics' => 'METRICS',
+			'graphView.source' => ({required Object value}) => 'Source: ${value}',
+			'graphView.updated' => ({required Object value}) => 'Updated: ${value}',
+			'graphView.tooltipSession' => 'SESSION',
+			'graphView.tooltipContext' => 'CONTEXT AND TOKENS',
+			'graphView.tooltipMachine' => 'MACHINE',
+			'graphView.tooltipIdentity' => ({required Object tool, required Object model, required Object status}) => '${tool} · ${model} · ${status}',
+			'graphView.tooltipUsage' => ({required Object used, required Object window}) => '${used} / ${window} context tokens',
+			'graphView.tooltipCpu' => ({required Object value}) => 'CPU ${value}%',
+			'graphView.tooltipRam' => ({required Object value}) => 'RAM ${value} MiB',
+			'graphView.tooltipSourceUpdated' => ({required Object source, required Object time}) => '${source} · ${time}',
+			'graphView.tooltipReason' => ({required Object reason}) => 'Unavailable: ${reason}',
 			'theme.error.io' => 'Could not read or write the theme file.',
 			'theme.error.ioDetail' => ({required Object detail}) => 'Could not read or write the theme file: ${detail}',
 			'theme.error.malformedJson' => ({required Object detail}) => 'This file is not valid JSON: ${detail}',
@@ -4990,11 +6288,105 @@ extension on Translations {
 			'theme.error.reservedId' => 'This theme uses the id of a built-in theme. Change "id" in the file and import again.',
 			'theme.error.notAnObject' => ({required Object field}) => 'Expected an object at "${field}".',
 			'theme.error.missingField' => ({required Object field}) => 'Missing required field "${field}".',
-			_ => null,
-		} ?? switch (path) {
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" at "${field}" is not a color. Use #RGB, #RRGGBB or #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Unknown base theme "${value}" in "extends".',
 			'theme.error.noVariants' => 'The theme declares no variant. Add "dark", "light" or both under "variants".',
+			'workspaceView.terminals' => 'Terminals',
+			'workspaceView.boxes' => 'List',
+			'workspaceView.graph' => 'Graph',
+			'workspaceView.newTerminal' => 'New terminal',
+			'workspaceView.configure' => 'Configure terminal',
+			'workspaceView.closeInspector' => 'Close inspector',
+			'workspaceView.search' => 'Search name or function',
+			'workspaceView.allStates' => 'All states',
+			'workspaceView.name' => 'Terminal',
+			'workspaceView.state' => 'State',
+			'workspaceView.tool' => 'Tool',
+			'workspaceView.role' => 'Function',
+			'workspaceView.context' => 'Context',
+			'workspaceView.optionalRole' => 'Function (optional)',
+			'workspaceView.model' => 'Model (empty = default)',
+			'workspaceView.noTool' => 'None',
+			'workspaceView.shell' => 'Shell',
+			'workspaceView.working' => 'Working',
+			'workspaceView.waiting' => 'Waiting',
+			'workspaceView.idle' => 'Idle',
+			'workspaceView.closed' => 'Closed',
+			'workspaceView.disconnected' => 'Disconnected',
+			'workspaceView.unavailable' => 'Unavailable',
+			'workspaceView.noRole' => 'Add a function',
+			'workspaceView.noBoxes' => 'No terminals yet',
+			'workspaceView.noMatches' => 'No terminals match your search',
+			'workspaceView.selectBox' => 'Select a box to preview its terminal',
+			'workspaceView.noSession' => 'This terminal has no session',
+			'workspaceView.startShell' => 'Start terminal',
+			'workspaceView.openTerminal' => 'Open in Terminals',
+			'workspaceView.save' => 'Save',
+			'workspaceView.saved' => 'Configuration saved',
+			'workspaceView.startCli' => 'Start CLI',
+			'workspaceView.compact' => 'Compact context',
+			'workspaceView.handoff' => 'Prepare handoff',
+			'workspaceView.handoffTitle' => 'Handoff summary',
+			'workspaceView.handoffHelp' => 'Describe the current state and next steps. The summary will be copied for the new session.',
+			'workspaceView.handoffReady' => 'New session ready. Paste the copied summary when the tool is ready.',
+			'workspaceView.handoffSessionReady' => 'New session ready',
+			'workspaceView.handoffCopyUnavailable' => 'The session was created, but the summary was not copied. Select and copy the summary below to continue.',
+			'workspaceView.handoffSessionLabel' => 'Session',
+			'workspaceView.connections' => 'Connections',
+			'workspaceView.noConnections' => 'No connections',
+			'workspaceView.cancel' => 'Cancel',
+			'workspaceView.error' => 'Unable to update box',
+			'workspaceView.planned' => 'Planned connection',
+			'workspaceView.observed' => 'Observed activity',
+			'workspaceView.temporary' => 'Temporary subagent',
+			'workspaceView.linkBoxes' => 'Connect terminals',
+			'workspaceView.selectEndpoints' => 'Select source and target',
+			'workspaceView.zoomFit' => 'Reset zoom',
+			'workspaceView.session' => 'Session',
+			'workspaceView.configuration' => 'Configuration',
+			'workspaceView.nameRequired' => 'Enter a terminal name',
+			'workspaceView.removeLink' => 'Remove connection',
+			'workspaceView.handoffSummary' => 'Summary',
+			'workspaceView.copyRole' => 'Copy function',
+			'workspaceView.showInspector' => 'Show inspector',
+			'workspaceView.addConnection' => 'Connect to another terminal',
+			'workspaceView.actions' => 'Actions',
+			'workspaceView.closeTerminal' => 'Hide terminal',
+			'workspaceView.legend' => 'Legend',
+			'workspaceView.portableHint' => 'Saved in the .orc file. Session actions live in the terminal menu.',
+			'terminalAttachment.importing' => ({required Object completed, required Object total}) => 'Copying attachments: ${completed}/${total}',
+			'terminalAttachment.nativeImage' => 'Image paste requested from the agent.',
+			'terminalAttachment.referenced' => 'Local references inserted.',
+			'terminalAttachment.remoteUnavailable' => 'Files and images are not supported in remote terminals yet. Paste text or transfer the file to the host.',
+			'terminalAttachment.failed' => ({required Object detail}) => 'Some attachments could not be inserted: ${detail}',
+			'orchestration.newTerminal' => 'New terminal',
+			'orchestration.reload' => 'Reload',
+			'orchestration.savePending' => 'Unsaved changes',
+			'orchestration.removed' => 'A definition was removed from the file. Close its terminal?',
+			'orchestration.closeTerminal' => 'Close terminal',
+			'orchestration.restoreDefinition' => 'Keep terminal and restore definition',
+			'orchestration.directory' => 'Directory relative to worktree',
+			'orchestration.openTerminal' => 'Go to terminal',
+			'orchestration.importTitle' => 'Import existing configuration?',
+			'orchestration.importHelp' => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.',
+			'orchestration.createWithoutImport' => 'Create without importing',
+			'orchestration.importLegacy' => 'Import configuration',
+			'orchestration.noCli' => 'No CLI detected',
+			'orchestration.connectedCli' => 'Connected CLI',
+			'orchestration.needsInput' => 'Needs your input',
+			'orchestration.newActivity' => 'New result',
+			'orchestration.roleMissing' => 'No role defined. Ask the connected agent for a suggestion.',
+			'orchestration.askRole' => 'Ask agent for role',
+			'orchestration.askingRole' => 'Waiting for agent…',
+			'orchestration.roleSuggestion' => 'Suggested role — review before saving',
+			'orchestration.useSuggestion' => 'Use suggestion',
+			'orchestration.discardSuggestion' => 'Discard',
+			'orchestration.roleNoAgent' => 'No CLI detected in this terminal.',
+			'orchestration.roleBusy' => 'Wait until the agent is idle before asking.',
+			'orchestration.roleChanged' => 'The terminal or document changed. Ask again.',
+			'orchestration.roleTimeout' => 'The agent did not return a suggestion in time. You can try again or fill the role manually.',
+			'orchestration.roleInvalid' => 'The agent returned an invalid role suggestion.',
+			'orchestration.noBoxSelected' => 'Select a terminal in the list or graph to work in it.',
 			_ => null,
 		};
 	}

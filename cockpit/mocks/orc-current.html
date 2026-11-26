@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orchestration (atual)</title>
+<style>
+  :root {
+    --bg: #fdfdf6;
+    --panel: #f2f2ea;
+    --panel2: #e8e8df;
+    --border: #d9d9cf;
+    --text: #1a1a1a;
+    --text2: #4a4a46;
+    --text3: #7a7a74;
+    --accent: #2f8278;
+    --accent-soft: #dfe9e2;
+    --accent-text: #2f8278;
+    --font: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text); font-family: var(--font);
+    font-size: 14px; display: flex; flex-direction: column; height: 100vh;
+  }
+
+  /* ---- outer dock tabs ---- */
+  .dock-tabs { display: flex; align-items: stretch; height: 40px; border-bottom: 1px solid var(--border); background: var(--bg); }
+  .dock-tab { display: flex; align-items: center; gap: 8px; padding: 0 14px; width: 180px; border-right: 1px solid var(--border); color: var(--text2); white-space: nowrap; overflow: hidden; }
+  .dock-tab .x { margin-left: auto; color: var(--text3); }
+  .dock-tab.active { border-bottom: 2px solid var(--accent); color: var(--text); background: #fff; }
+  .dock-tab .ic { width: 14px; height: 14px; display: inline-block; }
+  .dock-tools { margin-left: auto; display: flex; align-items: center; gap: 14px; padding: 0 14px; color: var(--text2); border-left: 1px solid var(--border); }
+
+  /* ---- app toolbar ---- */
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 10px 8px; background: var(--bg); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .toolbar .fname { width: 160px; text-align: center; font-size: 13px; }
+  .btn { height: 32px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit; font-size: 14px; cursor: default; display: inline-flex; align-items: center; gap: 6px; }
+  .btn.on { color: var(--accent-text); background: var(--accent-soft); border-color: #cfd9d3; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .ibtn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; color: var(--text); }
+
+  /* ---- overview (boxes) ---- */
+  .overview { background: var(--panel); height: 40%; display: flex; flex-direction: column; min-height: 0; }
+  .filter { display: flex; gap: 8px; padding: 12px; }
+  .search { flex: 1; height: 36px; border-radius: 6px; background: var(--panel2); border: 1px solid var(--border); padding: 0 12px; color: var(--text3); display: flex; align-items: center; }
+  .cols, .row { display: grid; grid-template-columns: 32px 3fr 2fr 2fr 3fr 100px 40px; align-items: center; }
+  .cols { padding: 6px 16px 6px 16px; color: var(--text3); font-size: 13px; }
+  .cols > span:first-child { grid-column: 1 / span 2; }
+  .row { height: 52px; border-bottom: 1px solid var(--border); border-left: 3px solid transparent; margin-left: 32px; grid-template-columns: 3fr 2fr 2fr 3fr 100px 40px; position: relative; }
+  .rowwrap { display: flex; align-items: center; }
+  .rowwrap .grip { width: 32px; height: 52px; display: flex; align-items: center; justify-content: center; color: var(--text3); }
+  .rowwrap .row { flex: 1; margin-left: 0; }
+  .row.hover { background: var(--panel2); }
+  .row.selected { background: var(--accent-soft); border-left-color: var(--accent); }
+  .row .name { display: flex; align-items: center; gap: 10px; padding-left: 10px; }
+  .row .state { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); }
+  .row .role { color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .ctx { color: var(--text2); }
+  .row .gear { color: var(--text); text-align: center; }
+  .rows { overflow: auto; }
+  .rows .tail { border-bottom: 1px solid var(--border); margin-left: 32px; }
+
+  /* ---- divider ---- */
+  .divider { height: 6px; background: var(--border); cursor: row-resize; }
+
+  /* ---- terminals ---- */
+  .terminals { flex: 1; background: var(--bg); display: flex; flex-direction: column; min-height: 0; }
+  .ttabs { display: flex; align-items: center; height: 40px; border-bottom: 1px solid var(--border); }
+  .ttab { display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 100%; color: var(--text2); }
+  .ttab.active { background: var(--accent-soft); color: var(--text); }
+  .ttab .ic { opacity: .8; }
+  .ttab .g, .ttab .x { margin-left: 10px; }
+  .ttools { margin-left: auto; display: flex; gap: 18px; padding: 0 12px; color: var(--text); }
+  .term { flex: 1; padding: 10px 14px; font-family: var(--mono); font-size: 13px; line-height: 1.5; }
+  .prompt .path { background: #1e4a8f; color: #fff; padding: 2px 8px; }
+  .prompt .git { background: #b58a1e; color: #1a1a1a; padding: 2px 8px; }
+  .caret { color: #3aa655; }
+  .cursor { display: inline-block; width: 7px; height: 15px; background: var(--accent); vertical-align: -2px; margin-left: 6px; }
+
+  svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+
+<!-- outer dock -->
+<div class="dock-tabs">
+  <div class="dock-tab"><span>▦</span><span style="color:#2f8278">✳</span> Orquestrador …<span class="x">×</span></div>
+  <div class="dock-tab active"><span style="color:#2f8278">✦</span> notebox.orc<span class="x">×</span></div>
+  <div class="dock-tools"><span>+</span><span>◐</span><span>▯▯</span><span>▭</span><span>×</span></div>
+</div>
+
+<!-- toolbar -->
+<div class="toolbar">
+  <div class="fname">notebox.orc</div>
+  <button class="btn on">Boxes</button>
+  <button class="btn">Grafo</button>
+  <button class="btn">Abrir como JSON</button>
+  <button class="btn primary">Novo terminal</button>
+  <span class="ibtn"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg></span>
+  <span class="ibtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span>
+</div>
+
+<!-- overview: Boxes -->
+<div class="overview">
+  <div class="filter">
+    <div class="search">Buscar nome ou função</div>
+    <button class="btn"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg> Todos os estados</button>
+  </div>
+  <div class="cols"><span>Box</span><span>Estado</span><span>Ferramenta</span><span>Função</span><span>Contexto</span><span></span></div>
+  <div class="rows">
+    <div class="rowwrap">
+      <div class="grip">═</div>
+      <div class="row hover">
+        <div class="name"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>Orquestrador</div>
+        <div class="state"><span class="dot"></span>Shell</div>
+        <div>Nenhuma CLI detectada</div>
+        <div class="role">Orquestrador do NoteBox. Recebe a…</div>
+        <div class="ctx">Indisponível</div>
+        <div class="gear">⚙</div>
+      </div>
+    </div>
+    <div class="rowwrap">
+      <div class="grip">═</div>
+      <div class="row selected">
+        <div class="name"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>App (Flutter)</div>
+        <div class="state"><span class="dot"></span>Shell</div>
+        <div>Nenhuma CLI detectada</div>
+        <div class="role">Desenvolvedor do app Flutter em `a…</div>
+        <div class="ctx">Indisponível</div>
+        <div class="gear">⚙</div>
+      </div>
+    </div>
+    <div class="rowwrap">
+      <div class="grip">═</div>
+      <div class="row">
+        <div class="name"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>Backend (Vaden)</div>
+        <div class="state"><span class="dot"></span>Shell</div>
+        <div>Nenhuma CLI detectada</div>
+        <div class="role">Desenvolvedor do backend Dart em …</div>
+        <div class="ctx">Indisponível</div>
+        <div class="gear">⚙</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- terminals -->
+<div class="terminals">
+  <div class="ttabs">
+    <div class="ttab"><span class="ic">▣</span>Orquestrador<span class="g">⚙</span><span class="x">×</span></div>
+    <div class="ttab active"><span class="ic">▣</span>App (Flutter)<span class="g">⚙</span><span class="x">×</span></div>
+    <div class="ttab"><span class="ic">▣</span>Backend (Vaden)<span class="g">⚙</span><span class="x">×</span></div>
+    <div class="ttools"><span>+</span><span>⊟</span><span>☰</span></div>
+  </div>
+  <div class="term">
+    <div class="prompt"><span class="path">~/Projects/notebox/app</span><span class="git">main &gt;6 !10 ?12</span></div>
+    <div><span class="caret">&gt;</span><span class="cursor"></span></div>
+  </div>
+</div>
+
+</body>
+</html>

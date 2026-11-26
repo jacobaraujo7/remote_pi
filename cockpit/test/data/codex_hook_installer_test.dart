@@ -41,6 +41,11 @@ void main() {
     return f.existsSync() ? f.readAsStringSync() : '';
   }
 
+  String trustHeader(String label) {
+    final key = '${codex.path}/hooks.json:$label';
+    return '[hooks.state."${key.replaceAll('\\', '\\\\')}"]';
+  }
+
   group('trustHash', () {
     // Goldens capturados de uma sessão real: com estes valores no config.toml,
     // o `codex exec` executou os hooks SEM `--dangerously-bypass-hook-trust`.
@@ -94,37 +99,39 @@ void main() {
   });
 
   group('writeConfig', () {
-    test('instala os sete eventos com trust correspondente', () async {
-      const installer = _FakeInstaller('/bin/cockpit hook');
-      await installer.writeConfig(
-        home: home.path,
-        command: '/bin/cockpit hook',
-      );
-
-      final hooks = readHooks()['hooks'] as Map<String, dynamic>;
-      expect(hooks.keys, hasLength(7));
-      expect(hooks.keys, contains('PermissionRequest'));
-      // Subagente e compactação ficam de fora de propósito.
-      expect(hooks.keys, isNot(contains('SubagentStart')));
-      expect(hooks.keys, isNot(contains('PreCompact')));
-
-      final config = readConfig();
-      for (final label in const [
-        'user_prompt_submit',
-        'pre_tool_use',
-        'post_tool_use',
-        'permission_request',
-        'stop',
-        'session_start',
-        'session_end',
-      ]) {
-        expect(
-          config,
-          contains('[hooks.state."${codex.path}/hooks.json:$label:0:0"]'),
+    test(
+      'instala eventos de turno e subagentes com trust correspondente',
+      () async {
+        const installer = _FakeInstaller('/bin/cockpit hook');
+        await installer.writeConfig(
+          home: home.path,
+          command: '/bin/cockpit hook',
         );
-      }
-      expect('trusted_hash'.allMatches(config).length, 7);
-    });
+
+        final hooks = readHooks()['hooks'] as Map<String, dynamic>;
+        expect(hooks.keys, hasLength(9));
+        expect(hooks.keys, contains('PermissionRequest'));
+        expect(hooks.keys, contains('SubagentStart'));
+        expect(hooks.keys, contains('SubagentStop'));
+        expect(hooks.keys, isNot(contains('PreCompact')));
+
+        final config = readConfig();
+        for (final label in const [
+          'user_prompt_submit',
+          'pre_tool_use',
+          'post_tool_use',
+          'permission_request',
+          'stop',
+          'session_start',
+          'session_end',
+          'subagent_start',
+          'subagent_stop',
+        ]) {
+          expect(config, contains(trustHeader('$label:0:0')));
+        }
+        expect('trusted_hash'.allMatches(config).length, 9);
+      },
+    );
 
     test('marca o comando com --harness codex', () async {
       // É o que permite ao app retomar a aba com `codex resume <id>`: o
@@ -154,7 +161,7 @@ void main() {
 
       final config = readConfig();
       expect('# >>> cockpit hooks'.allMatches(config).length, 1);
-      expect('trusted_hash'.allMatches(config).length, 7);
+      expect('trusted_hash'.allMatches(config).length, 9);
     });
 
     test('preserva hooks de terceiros e reindexa o trust', () async {
@@ -184,10 +191,7 @@ void main() {
           (readHooks()['hooks'] as Map<String, dynamic>)['Stop'] as List;
       expect(stop, hasLength(2));
       expect(jsonEncode(stop.first), contains('meu-hook'));
-      expect(
-        readConfig(),
-        contains('[hooks.state."${codex.path}/hooks.json:stop:1:0"]'),
-      );
+      expect(readConfig(), contains(trustHeader('stop:1:0')));
     });
 
     test(
@@ -238,7 +242,7 @@ void main() {
         home: home.path,
         command: '/bin/cockpit hook',
       );
-      expect((readHooks()['hooks'] as Map).keys, hasLength(7));
+      expect((readHooks()['hooks'] as Map).keys, hasLength(9));
     });
   });
 }

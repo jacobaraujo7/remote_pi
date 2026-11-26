@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
 // Hosts remotos (plano 58): RemoteHostsController é infra compartilhada (como
 // AutomationController), provida app-scoped no bootstrapper. A aba os gerencia.
 import 'package:cockpit/app/cockpit/data/remote/remote_host_connector.dart'
@@ -22,7 +23,6 @@ import 'package:cockpit/app/core/ui/widgets/error_report_dialog.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_command.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_launchers.dart';
 import 'package:cockpit/app/core/data/setup/storage_location.dart';
-import 'package:flutter/services.dart';
 import 'package:cockpit/app/core/utils/native_folder_picker.dart';
 import 'package:cockpit/app/core/utils/platform_kind.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
@@ -70,6 +70,7 @@ enum _Category {
   general,
   appearance,
   terminal,
+  explorer,
   languages,
   automations,
   shortcuts,
@@ -82,6 +83,7 @@ extension on _Category {
   /// General, Appearance, Shortcuts, Notifications e Remote hosts.
   bool get hiddenOnMobile =>
       this == _Category.terminal ||
+      this == _Category.explorer ||
       this == _Category.languages ||
       this == _Category.automations;
 }
@@ -124,6 +126,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _Category.general => const _GeneralPanel(),
       _Category.appearance => const _AppearancePanel(),
       _Category.terminal => const _TerminalPanel(),
+      _Category.explorer => const _ExplorerPanel(),
       _Category.languages => const _LanguagesPanel(),
       _Category.automations => const _AutomationsPanel(),
       _Category.shortcuts => const _ShortcutsPanel(),
@@ -272,6 +275,12 @@ class _CategoryNav extends StatelessWidget {
               label: context.t.settings.page.nav.terminal,
               selected: selected == _Category.terminal,
               onTap: () => onSelect(_Category.terminal),
+            ),
+            _NavItem(
+              icon: Icons.account_tree_outlined,
+              label: context.t.settings.page.nav.explorer,
+              selected: selected == _Category.explorer,
+              onTap: () => onSelect(_Category.explorer),
             ),
             _NavItem(
               icon: Icons.code,
@@ -482,6 +491,14 @@ class _GeneralPanel extends StatelessWidget {
                               onChanged: controller.setFileEditorEngine,
                             ),
                           ],
+                        ),
+                      ),
+                      _Row(
+                        title: tr.wordWrapTitle,
+                        description: tr.wordWrapDesc,
+                        trailing: _WordWrapDropdown(
+                          value: s.editorWordWrap,
+                          onChanged: controller.setEditorWordWrap,
                         ),
                       ),
                     ],
@@ -1074,8 +1091,341 @@ class _StorageSectionState extends State<_StorageSection> {
   }
 }
 
-// Aparência
+// Explorer
 // ---------------------------------------------------------------------------
+class _ExplorerPanel extends StatefulWidget {
+  const _ExplorerPanel();
+
+  @override
+  State<_ExplorerPanel> createState() => _ExplorerPanelState();
+}
+
+class _NestingPatternDraft {
+  _NestingPatternDraft(this.id, String pattern, String children)
+    : pattern = TextEditingController(text: pattern),
+      children = TextEditingController(text: children),
+      parentFocus = FocusNode(),
+      childrenFocus = FocusNode();
+
+  final int id;
+  final TextEditingController pattern;
+  final TextEditingController children;
+  final FocusNode parentFocus;
+  final FocusNode childrenFocus;
+
+  void dispose() {
+    pattern.dispose();
+    children.dispose();
+    parentFocus.dispose();
+    childrenFocus.dispose();
+  }
+}
+
+class _ExplorerPanelState extends State<_ExplorerPanel> {
+  final _drafts = <_NestingPatternDraft>[];
+  late SettingsController _settingsController;
+  int _nextDraftId = 0;
+  bool _initialized = false;
+
+  _NestingPatternDraft _draft(String pattern, String children) {
+    final draft = _NestingPatternDraft(_nextDraftId++, pattern, children);
+    void onFocusChanged() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_drafts.contains(draft)) return;
+        if (draft.parentFocus.hasFocus || draft.childrenFocus.hasFocus) return;
+        if (draft == _drafts.last) return;
+        if (draft.pattern.text.trim().isEmpty &&
+            draft.children.text.trim().isEmpty) {
+          _remove(draft);
+        }
+      });
+    }
+
+    draft.parentFocus.addListener(onFocusChanged);
+    draft.childrenFocus.addListener(onFocusChanged);
+    return draft;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
+    _settingsController = context.read<SettingsController>();
+    final patterns = _settingsController.settings.fileNestingPatterns;
+    for (final entry in patterns.entries) {
+      _drafts.add(_draft(entry.key, entry.value));
+    }
+    _drafts.add(_draft('', ''));
+  }
+
+  @override
+  void dispose() {
+    for (final draft in _drafts) {
+      draft.dispose();
+    }
+    super.dispose();
+  }
+
+  void _changed() {
+    // The last empty row is always ready for the next pattern. Typing a parent
+    // creates another row immediately, while the current input keeps focus.
+    setState(() {
+      if (_drafts.last.pattern.text.trim().isNotEmpty) {
+        _drafts.add(_draft('', ''));
+      }
+    });
+    // Persist before route disposal. JsonStateStore already debounces disk I/O.
+    _persist();
+  }
+
+  void _remove(_NestingPatternDraft draft) {
+    setState(() => _drafts.remove(draft));
+    WidgetsBinding.instance.addPostFrameCallback((_) => draft.dispose());
+    _persist();
+  }
+
+  void _persist() {
+    final patterns = <String, String>{};
+    for (final draft in _drafts) {
+      final parent = draft.pattern.text.trim();
+      final children = draft.children.text.trim();
+      if (parent.isNotEmpty && children.isNotEmpty) {
+        patterns[parent] = children;
+      }
+    }
+    final current = _settingsController.settings.fileNestingPatterns;
+    if (current.length == patterns.length &&
+        current.entries.every((entry) => patterns[entry.key] == entry.value)) {
+      return;
+    }
+    _settingsController.setFileNestingPatterns(patterns);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<SettingsController>();
+    final settings = controller.settings;
+    final tr = context.t.settings.page.explorer;
+    final colors = context.colors;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Section(
+                label: tr.sectionNesting,
+                child: _Card(
+                  children: [
+                    _Row(
+                      title: tr.enabledTitle,
+                      description: tr.enabledDesc,
+                      trailing: Switch(
+                        value: settings.fileNestingEnabled,
+                        onChanged: controller.setFileNestingEnabled,
+                      ),
+                    ),
+                    _Row(
+                      title: tr.autoExpandTitle,
+                      description: tr.autoExpandDesc,
+                      trailing: Switch(
+                        value: settings.fileNestingAutoExpand,
+                        onChanged: controller.setFileNestingAutoExpand,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _Section(
+                label: tr.patternsTitle,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 10),
+                      child: Text(
+                        '${tr.patternsDesc} ${r'${capture}'}',
+                        style: context.typo.label.copyWith(color: colors.text3),
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: colors.panel2,
+                        border: Border.all(color: colors.border),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    tr.parentPlaceholder,
+                                    style: context.typo.label.copyWith(
+                                      color: colors.text3,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    tr.childrenPlaceholder,
+                                    style: context.typo.label.copyWith(
+                                      color: colors.text3,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 38),
+                              ],
+                            ),
+                          ),
+                          Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: colors.border,
+                          ),
+                          for (final draft in _drafts) ...[
+                            _NestingPatternRow(
+                              key: ValueKey(draft.id),
+                              draft: draft,
+                              isEmptyRow:
+                                  draft == _drafts.last &&
+                                  draft.pattern.text.trim().isEmpty,
+                              onChanged: _changed,
+                              onDelete: () => _remove(draft),
+                            ),
+                            if (draft != _drafts.last)
+                              Divider(
+                                height: 1,
+                                thickness: 1,
+                                color: colors.border,
+                              ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NestingPatternRow extends StatelessWidget {
+  const _NestingPatternRow({
+    super.key,
+    required this.draft,
+    required this.isEmptyRow,
+    required this.onChanged,
+    required this.onDelete,
+  });
+
+  final _NestingPatternDraft draft;
+  final bool isEmptyRow;
+  final VoidCallback onChanged;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final placeholderStyle = context.typo.mono.copyWith(
+      fontSize: 12.5,
+      color: colors.text4,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: isEmptyRow
+              ? const EdgeInsets.fromLTRB(14, 12, 14, 0)
+              : EdgeInsets.zero,
+          child: isEmptyRow
+              ? Row(
+                  children: [
+                    Icon(Icons.add, size: 15, color: colors.text3),
+                    const SizedBox(width: 5),
+                    Text(
+                      context.t.settings.page.explorer.newPattern,
+                      style: context.typo.label.copyWith(color: colors.text3),
+                    ),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: draft.pattern,
+                  focusNode: draft.parentFocus,
+                  onChanged: (_) => onChanged(),
+                  placeholder: isEmptyRow
+                      ? Text('*.ts', style: placeholderStyle)
+                      : null,
+                  style: context.typo.mono.copyWith(
+                    fontSize: 12.5,
+                    color: colors.text,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: draft.children,
+                  focusNode: draft.childrenFocus,
+                  onChanged: (_) => onChanged(),
+                  placeholder: isEmptyRow
+                      ? Text(
+                          r'${capture}.js, ${capture}.js.map',
+                          style: placeholderStyle,
+                        )
+                      : null,
+                  style: context.typo.mono.copyWith(
+                    fontSize: 12.5,
+                    color: colors.text,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: isEmptyRow
+                    ? null
+                    : AppTooltip(
+                        message: context.t.settings.page.explorer.remove,
+                        child: HoverTap(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: onDelete,
+                          child: Icon(
+                            Icons.close,
+                            size: 16,
+                            color: colors.text3,
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// **Terminal** — escolhe o motor VT e, no Windows, o shell padrão.
 ///
 /// O padrão é gravado **por id** (`defaultTerminalProfileId`), nunca o objeto:
@@ -1243,6 +1593,46 @@ class _FileEditorEngineDropdown extends StatelessWidget {
           ],
         );
         if (picked != null) onChanged(picked);
+      },
+    );
+  }
+}
+
+/// Quebra de linha do editor de arquivos. Os três valores são os mesmos de
+/// `AppSettings.editorWordWrap`: `null` = padrão da linguagem (markdown/texto
+/// quebram), `true` = todo arquivo, `false` = nenhum. O ⌥Z do editor também
+/// grava um dos três (ver `toggledEditorWordWrap`).
+class _WordWrapDropdown extends StatelessWidget {
+  const _WordWrapDropdown({required this.value, required this.onChanged});
+  final bool? value;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tr = context.t.settings.page.general.wordWrap;
+    final labels = <bool?, String>{
+      null: tr.byLanguage,
+      true: tr.always,
+      false: tr.off,
+    };
+    return _DropdownChip(
+      label: labels[value]!,
+      onTap: () async {
+        // `showAppMenu` devolve null ao fechar sem escolher, então o valor
+        // `null` (padrão da linguagem) viaja embrulhado num record.
+        final picked = await showAppMenu<(bool?,)>(
+          context,
+          minWidth: 180,
+          items: [
+            for (final e in labels.entries)
+              AppMenuItem(
+                value: (e.key,),
+                label: e.value,
+                selected: e.key == value,
+              ),
+          ],
+        );
+        if (picked != null) onChanged(picked.$1);
       },
     );
   }
@@ -1615,14 +2005,20 @@ class _SoundEventRowState extends State<_SoundEventRow> {
   /// Player do preview, criado no primeiro uso (re-`open` reinicia o som).
   Player? _player;
 
+  /// Para o player no fim do som: com o `keep-open=yes` do media_kit a saída
+  /// de áudio ficaria aberta enquanto a página vive (mesmo caso do chime no
+  /// `LocalNotifier`).
+  StreamSubscription<bool>? _completedSub;
+
   @override
   void dispose() {
+    _completedSub?.cancel();
     _player?.dispose();
     super.dispose();
   }
 
   Future<void> _preview(String? customPath, double volume) async {
-    final player = _player ??= Player();
+    final player = _player ??= _createPlayer();
     final media = customPath != null && File(customPath).existsSync()
         ? Media(customPath)
         : Media('asset:///assets/sounds/${widget.event.defaultAsset}');
@@ -1632,6 +2028,14 @@ class _SoundEventRowState extends State<_SoundEventRow> {
     } catch (_) {
       // preview é best-effort; o fallback pro embarcado acontece em runtime
     }
+  }
+
+  Player _createPlayer() {
+    final player = Player();
+    _completedSub = player.stream.completed.listen((done) {
+      if (done) player.stop().catchError((Object _) {});
+    });
+    return player;
   }
 
   Future<void> _choose() async {
@@ -2253,9 +2657,14 @@ class _DeviceKeySection extends StatelessWidget {
                             onPressed: key.isEmpty
                                 ? null
                                 : () async {
-                                    await Clipboard.setData(
-                                      ClipboardData(text: key),
-                                    );
+                                    if (await TextClipboardService.instance
+                                            .write(
+                                              key,
+                                              operation: 'settings_page',
+                                            ) !=
+                                        TextClipboardResult.copied) {
+                                      return;
+                                    }
                                     if (!context.mounted) return;
                                     showToast(
                                       context: context,
@@ -2479,7 +2888,7 @@ class _ThemeModeDropdown extends StatelessWidget {
 /// Opções de idioma da interface. `system` = seguir o locale do SO
 /// (`AppSettings.locale == null`); as demais mapeiam pro código raw persistido
 /// e repassado ao `slang` (`LocaleSettings.setLocaleRaw`).
-enum _LocaleOption { system, en, es, ptBr }
+enum _LocaleOption { system, en, es, ptBr, zh }
 
 class _LocaleDropdown extends StatelessWidget {
   const _LocaleDropdown({required this.value, required this.onChanged});
@@ -2493,12 +2902,14 @@ class _LocaleDropdown extends StatelessWidget {
     _LocaleOption.en: 'en',
     _LocaleOption.es: 'es',
     _LocaleOption.ptBr: 'pt-BR',
+    _LocaleOption.zh: 'zh',
   };
 
   _LocaleOption _optionOf(String? code) => switch (code) {
     'en' => _LocaleOption.en,
     'es' => _LocaleOption.es,
     'pt-BR' => _LocaleOption.ptBr,
+    'zh' => _LocaleOption.zh,
     _ => _LocaleOption.system,
   };
 
@@ -2513,6 +2924,7 @@ class _LocaleDropdown extends StatelessWidget {
       _LocaleOption.en: (label: tr.english, icon: Icons.language),
       _LocaleOption.es: (label: tr.spanish, icon: Icons.language),
       _LocaleOption.ptBr: (label: tr.portugueseBr, icon: Icons.language),
+      _LocaleOption.zh: (label: tr.simplifiedChinese, icon: Icons.language),
     };
     final current = _optionOf(value);
     final currentMeta = labels[current]!;

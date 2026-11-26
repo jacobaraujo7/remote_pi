@@ -152,11 +152,13 @@ class FileOpsController extends ChangeNotifier {
         final internal =
             workspaceRoot.isNotEmpty && isUnderPath(from, workspaceRoot);
         if (internal) {
-          // Já está no destino: nada a fazer.
-          if (dirnameOf(from) == targetDir) continue;
-          final r = await _mutator.rename(from, joinPath(targetDir, name));
+          // Compare canonical full paths: native Windows separators may be
+          // present in the drop target even though the source is normalized.
+          final to = joinPath(targetDir, name);
+          if (from == to) continue;
+          final r = await _mutator.rename(from, to);
           if (r case Failure()) return r;
-          await retargetSessions?.call(from, joinPath(targetDir, name));
+          await retargetSessions?.call(from, to);
           changed = true;
           continue;
         }

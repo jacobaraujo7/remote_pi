@@ -1,3 +1,4 @@
+import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 import 'package:cockpit/app/core/data/process/owned_process_registry.dart';
 import 'package:cockpit/app/core/utils/user_home.dart';
 
@@ -19,7 +20,7 @@ class LspProcessRegistry {
 
   static final OwnedProcessRegistry _registry = OwnedProcessRegistry(
     category: 'lsp',
-    legacyFiles: [_legacyPath],
+    legacyFiles: cockpitIsolatedRoot() == null ? [_legacyPath] : const [],
   );
 
   /// Mata os PIDs remanescentes do ciclo anterior e limpa o registro. Deve ser

@@ -10,6 +10,8 @@ class WorktreeReconciler {
   final CoalescingSingleFlight<String> _flights =
       CoalescingSingleFlight<String>();
 
+  Future<void> settle() => _flights.settle();
+
   Future<void> run(
     String rootId,
     Future<void> Function(WorktreeManager manager) operation,

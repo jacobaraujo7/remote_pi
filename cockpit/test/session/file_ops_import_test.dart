@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:cockpit/app/core/utils/path_utils.dart';
+
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_mutator.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/file_ops_controller.dart';
 import 'package:cockpit/app/core/domain/exceptions/file_operation_error.dart';
@@ -57,7 +59,7 @@ void main() {
   test(
     'copies external sources and moves sources already in the workspace',
     () async {
-      final root = tmp.path;
+      final root = normalizePath(tmp.path);
       final r = await ctrl.importInto(
         ['/Users/x/Downloads/a.txt', '$root/src/b.txt'],
         '$root/docs',
@@ -73,7 +75,7 @@ void main() {
   );
 
   test('picks a free name when the destination already exists', () async {
-    final root = tmp.path;
+    final root = normalizePath(tmp.path);
     await Directory('$root/docs').create();
     await File('$root/docs/a.txt').writeAsString('x');
     await ctrl.importInto(
@@ -85,7 +87,7 @@ void main() {
   });
 
   test('refuses to drop a folder into itself', () async {
-    final root = tmp.path;
+    final root = normalizePath(tmp.path);
     final r = await ctrl.importInto(
       ['$root/src'],
       '$root/src/inner',
@@ -96,7 +98,7 @@ void main() {
     expect(bumps, 0);
   });
 
-  test('a source already in the target folder is a no-op', () async {
+  test('a native source already in the target folder is a no-op', () async {
     final root = tmp.path;
     final r = await ctrl.importInto(
       ['$root/docs/a.txt'],

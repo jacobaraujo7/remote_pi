@@ -259,6 +259,94 @@ after''');
     expect(await store.sizeInBytes(), greaterThan(0));
   });
 
+  test('chunked append preserves ids, redaction and FTS across boundaries', () {
+    final db = TelemetryDb.memory();
+    addTearDown(db.dispose);
+    final run = db.openRun({
+      'key': 'k',
+      'project': 'p',
+      'source': 'wrapper',
+      'cwd': '/x',
+      'command': 'c',
+      'started_at': 1,
+    });
+    expect(db.append([]), isEmpty);
+    final previous = db.append([
+      {
+        'run_id': run['id'],
+        'ts': 1,
+        'stream': 'out',
+        'severity': 2,
+        'body': 'old',
+      },
+    ]).single;
+    db.clear(runId: run['id'] as String);
+    final nextRun = db.openRun({
+      'key': 'k',
+      'project': 'p',
+      'source': 'wrapper',
+      'cwd': '/x',
+      'command': 'c',
+      'started_at': 2,
+    });
+    final ids = db.append([
+      for (var i = 0; i < 67; i++)
+        {
+          'run_id': nextRun['id'],
+          'ts': i + 2,
+          'stream': 'out',
+          'severity': 2,
+          'body': 'boundary$i token=secret$i',
+          'attrs': '{"password":"secret$i","index":$i}',
+          'raw_offset': i,
+          'repeat': i + 1,
+        },
+    ]);
+    expect(ids.toSet(), hasLength(67));
+    expect(
+      TelemetryDb.eventRowid(ids.first),
+      greaterThan(TelemetryDb.eventRowid(previous)!),
+    );
+    for (var i = 0; i < ids.length; i++) {
+      final event = db.event(ids[i])!;
+      expect(event['body'], 'boundary$i token=[redacted]');
+      expect(event['attrs'], '{"password":"[redacted]","index":$i}');
+      expect(event['raw_offset'], i);
+      expect(event['repeat'], i + 1);
+    }
+    expect(db.hasFts, isTrue);
+    expect(db.events({'text': 'boundary66'}).single['id'], ids.last);
+  });
+
+  test('append rolls back completed chunks on a later SQL failure', () {
+    final db = TelemetryDb.memory();
+    addTearDown(db.dispose);
+    final run = db.openRun({
+      'key': 'k',
+      'project': 'p',
+      'source': 'wrapper',
+      'cwd': '/x',
+      'command': 'c',
+      'started_at': 1,
+    });
+    final batch = [
+      for (var i = 0; i < 65; i++)
+        <String, Object?>{
+          'run_id': i == 40 ? null : run['id'],
+          'ts': i,
+          'stream': 'out',
+          'severity': 2,
+          'body': 'rollback$i',
+        },
+    ];
+    expect(() => db.append(batch), throwsException);
+    expect(db.events({'limit': 100}), isEmpty);
+    expect(db.events({'text': 'rollback0'}), isEmpty);
+    batch[40]['run_id'] = run['id'];
+    final ids = db.append(batch);
+    expect(ids, hasLength(65));
+    expect(db.event(ids[40])!['body'], 'rollback40');
+  });
   test('TelemetryDb síncrono: FTS disponível e lote grande rápido', () {
     final db = TelemetryDb.memory();
     addTearDown(db.dispose);

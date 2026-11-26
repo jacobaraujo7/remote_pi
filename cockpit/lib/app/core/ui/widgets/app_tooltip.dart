@@ -12,10 +12,16 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 /// do próprio `Overlay` (`localToGlobal(..., ancestor: overlay)`) e passada
 /// como `position` explícito → posição correta em qualquer escala.
 class AppTooltip extends StatefulWidget {
-  const AppTooltip({super.key, required this.message, required this.child});
+  const AppTooltip({
+    super.key,
+    required this.message,
+    required this.child,
+    this.showOnFocus = false,
+  });
 
   final String message;
   final Widget child;
+  final bool showOnFocus;
 
   @override
   State<AppTooltip> createState() => _AppTooltipState();
@@ -64,7 +70,7 @@ class _AppTooltipState extends State<AppTooltip> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
+    final trigger = MouseRegion(
       onEnter: (_) {
         _wait?.cancel();
         _wait = Timer(const Duration(milliseconds: 500), _show);
@@ -74,6 +80,19 @@ class _AppTooltipState extends State<AppTooltip> {
         _hide();
       },
       child: widget.child,
+    );
+    if (!widget.showOnFocus) return trigger;
+    return Focus(
+      canRequestFocus: false,
+      onFocusChange: (focused) {
+        _wait?.cancel();
+        if (focused) {
+          _show();
+        } else {
+          _hide();
+        }
+      },
+      child: trigger,
     );
   }
 }

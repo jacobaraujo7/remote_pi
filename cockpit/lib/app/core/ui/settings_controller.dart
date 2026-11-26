@@ -28,13 +28,12 @@ class SettingsController extends ChangeNotifier {
 
   /// Carrega o que está salvo (chamado no boot, antes do primeiro frame).
   Future<void> load() async {
+    final previousLocale = _settings.locale;
     _settings = await _store.load();
-    // `main.dart` já chamou `useDeviceLocale()` como fallback; só agimos aqui
-    // se há preferência explícita salva. Evita depender do
-    // `WidgetsBinding` (via `useDeviceLocale`) em testes que chamam `load()`
-    // sem `runApp`/`testWidgets` — `setLocaleRaw` não precisa dele.
+    // Boot already follows the device. A detached window also reloads this
+    // store when the main window switches back to the system language.
     final locale = _settings.locale;
-    if (locale != null) await LocaleSettings.setLocaleRaw(locale);
+    if (locale != null || previousLocale != null) await _applyLocale(locale);
     _customThemes = await _themeStore.loadAll();
     notifyListeners();
   }
@@ -75,6 +74,15 @@ class SettingsController extends ChangeNotifier {
 
   void setSourceControlViewMode(SourceControlViewMode mode) =>
       _apply(_settings.copyWith(sourceControlViewMode: mode));
+
+  void setFileNestingEnabled(bool value) =>
+      _apply(_settings.copyWith(fileNestingEnabled: value));
+
+  void setFileNestingAutoExpand(bool value) =>
+      _apply(_settings.copyWith(fileNestingAutoExpand: value));
+
+  void setFileNestingPatterns(Map<String, String> value) =>
+      _apply(_settings.copyWith(fileNestingPatterns: Map.of(value)));
 
   void setAutomationHarness(HarnessKind? id) {
     _apply(
@@ -212,6 +220,13 @@ class SettingsController extends ChangeNotifier {
 
   void setFormatOnSave(bool value) =>
       _apply(_settings.copyWith(formatOnSave: value));
+
+  /// `null` volta ao padrão da linguagem (ver `AppSettings.editorWordWrap`).
+  void setEditorWordWrap(bool? value) => _apply(
+    value == null
+        ? _settings.copyWith(clearEditorWordWrap: true)
+        : _settings.copyWith(editorWordWrap: value),
+  );
 
   void setCloseTabOnShellExit(bool value) =>
       _apply(_settings.copyWith(closeTabOnShellExit: value));

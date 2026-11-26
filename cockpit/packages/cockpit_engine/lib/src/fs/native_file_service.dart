@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:cockpit_core/cockpit_core.dart';
 
 /// [FileService] sobre o filesystem local do servidor (plano 58, Wave 3).
-class NativeFileService implements FileService {
+class NativeFileService implements FileService, ExclusiveFileCreator {
   const NativeFileService();
 
   @override
@@ -54,6 +54,32 @@ class NativeFileService implements FileService {
     try {
       return await file.readAsBytes();
     } on FileSystemException catch (e) {
+      throw FileException(FileErrorKind.io, e.message);
+    }
+  }
+
+  @override
+  Future<bool> createNew(String path, Uint8List bytes) async {
+    final file = File(path);
+    try {
+      await file.create(exclusive: true);
+    } on PathExistsException {
+      return false;
+    } on FileSystemException catch (e) {
+      // Windows reports an existing directory as access denied rather than
+      // PathExistsException. Detect it without following symlinks or writing.
+      if (await FileSystemEntity.type(path, followLinks: false) !=
+          FileSystemEntityType.notFound) {
+        return false;
+      }
+      throw FileException(FileErrorKind.io, e.message);
+    }
+    try {
+      await file.writeAsBytes(bytes, flush: true);
+      return true;
+    } on FileSystemException catch (e) {
+      // Keep a partial file on failure; a journaled retry chooses a fresh path.
+      // Never delete or overwrite a path whose ownership is now uncertain.
       throw FileException(FileErrorKind.io, e.message);
     }
   }

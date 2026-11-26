@@ -15,6 +15,9 @@ const String kTelemetryAppWorkspaceId = '__cockpit__';
 
 abstract class TelemetryIngestSession {
   String get runId;
+  String get workspaceId;
+  String? get ownerId;
+  String? get paneId;
 
   /// Variáveis a injetar no processo filho (`COCKPIT_RUN_ID`, `OTEL_*`).
   Map<String, String> get childEnvironment;
@@ -54,11 +57,13 @@ class TelemetryErrorNotice {
     required this.project,
     required this.fingerprints,
     this.paneId,
+    this.ownerId,
   });
   final String workspaceId;
   final String runId;
   final String project;
   final String? paneId;
+  final String? ownerId;
   final Set<String> fingerprints;
 }
 
@@ -75,13 +80,16 @@ abstract class TelemetryIngest {
   Future<TelemetryIngestSession?> openWrapperRun({
     required String cwd,
     required String command,
+    String? workspaceId,
+    String? ownerId,
     String? name,
     String? paneId,
     int? pid,
   });
 
-  /// Sessão aberta e ainda viva por `runId` (pra `telemetry-ingest/close`).
-  TelemetryIngestSession? session(String runId);
+  /// Store-local IDs can repeat. Pass the original workspace for mutations;
+  /// an unscoped lookup returns null if multiple live sessions have that ID.
+  TelemetryIngestSession? session(String runId, {String? workspaceId});
 
   /// Run do PRÓPRIO Cockpit (plano 68): erros dos handlers globais, warnings e
   /// métricas do app. Um por boot, no store [kTelemetryAppWorkspaceId].

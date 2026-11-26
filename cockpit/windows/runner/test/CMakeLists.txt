@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.14)
+project(terminal_clipboard_tests LANGUAGES CXX)
+enable_testing()
+add_executable(terminal_clipboard_test terminal_clipboard_test.cpp)
+target_compile_features(terminal_clipboard_test PRIVATE cxx_std_17)
+target_compile_definitions(terminal_clipboard_test PRIVATE NOMINMAX)
+target_link_libraries(terminal_clipboard_test PRIVATE gdiplus ole32 user32 shell32)
+add_test(NAME terminal_clipboard_bitmap_formats COMMAND terminal_clipboard_test)

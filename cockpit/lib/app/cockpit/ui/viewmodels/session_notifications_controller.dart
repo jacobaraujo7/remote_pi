@@ -17,6 +17,11 @@ class SessionNotificationsController extends ChangeNotifier {
   final Notifier _notifier;
   final WindowActivityController _windowActivity;
 
+  // Read-only infrastructure for owned unread eligibility. Owned sessions never
+  // enter this controller's completion/notification path.
+  bool get windowActive => _windowFocused;
+  Listenable get windowActivityChanges => _windowActivity;
+
   // ---- contexto injetado pelo VM dono (mesma vida page-scoped) -------------
 
   /// Id da aba que o usuário está olhando (aba ativa da pane focada).
@@ -63,6 +68,9 @@ class SessionNotificationsController extends ChangeNotifier {
   /// (`waiting`: permissão/pergunta/plano) — o `onTurnFinished` do terminal
   /// dispara nos dois. O status corrente da sessão decide qual [SoundEvent] é.
   Future<void> turnFinished(PaneItem s) async {
+    // Owned terminals route completion to their app, including its own unread
+    // state. Never produce global badges, sounds or OS notifications for them.
+    if (!s.owner.isWorkspace) return;
     final actionRequired =
         s is TerminalSession && s.status == TerminalStatus.waiting;
     final event = actionRequired

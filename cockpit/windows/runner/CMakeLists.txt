@@ -8,7 +8,10 @@ project(runner LANGUAGES CXX)
 # Any new source files that you add to the application should be added here.
 add_executable(${BINARY_NAME} WIN32
   "flutter_window.cpp"
+  "terminal_clipboard.cpp"
+  "document_plugin_registrant.cpp"
   "main.cpp"
+  "native_open_forwarder.cpp"
   "utils.cpp"
   "win32_window.cpp"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
@@ -57,8 +60,18 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 # Add dependency libraries and include directories. Add any application-specific
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
-target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
+target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib" "gdiplus.lib" "ole32.lib" "shell32.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
+
+# Explicit test target, outside the installed app bundle.
+add_executable(native_open_forwarder_test EXCLUDE_FROM_ALL
+  "native_open_forwarder_test.cpp" "native_open_forwarder.cpp")
+apply_standard_settings(native_open_forwarder_test)
+target_compile_definitions(native_open_forwarder_test PRIVATE "NOMINMAX")
+target_compile_options(native_open_forwarder_test PRIVATE /utf-8)
+target_link_libraries(native_open_forwarder_test PRIVATE "shell32.lib")
+set_target_properties(native_open_forwarder_test PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/native_tests")

@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/terminal_attachments.dart';
+import 'package:cockpit/app/cockpit/domain/services/terminal_attachment_service.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
+import 'package:cockpit/app/cockpit/domain/entities/process_metrics_snapshot.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/core/data/diagnostics/performance_diagnostics.dart';
+import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/core/terminal/secret_redactor.dart';
 import 'package:cockpit/app/cockpit/domain/services/terminal_harness_monitor.dart';
@@ -18,7 +23,6 @@ import 'package:cockpit/app/core/utils/bounded_text_buffer.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_input.dart';
 import 'package:flutter/foundation.dart';
-import 'package:pasteboard/pasteboard.dart';
 import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// Status de um `claude` (ou outro harness) rodando dentro de uma aba de
@@ -32,10 +36,15 @@ enum TerminalStatus { idle, working, waiting }
 class TerminalSession extends PaneItem {
   TerminalSession({
     required this.id,
+    this.owner = const TerminalOwner.workspace(),
     required this.projectId,
     required this.workingDirectory,
     required this._gateway,
     required this.profile,
+    this.attachmentService,
+    this.attachmentProjectRoot = '',
+    this.attachmentsRemote = false,
+    this.attachmentFeedbackTtl = const Duration(seconds: 6),
     String? title,
     Map<String, String> spawnEnv = const <String, String>{},
     Iterable<String> redactSecrets = const <String>[],
@@ -134,7 +143,11 @@ class TerminalSession extends PaneItem {
             // Fim do stream = processo encerrado (o PTY local fecha a porta no
             // exit; o sidecar fecha no `PtyExitEvent`). No `dispose` fomos nós
             // que matamos — aí não é notícia pra ninguém.
-            if (!_disposed) onProcessExit?.call();
+            if (!_disposed) {
+              _processEnded = true;
+              notifyListeners();
+              onProcessExit?.call();
+            }
           },
         );
     terminal.onOutput = (data) {
@@ -200,6 +213,8 @@ class TerminalSession extends PaneItem {
   VoidCallback? onProcessExit;
 
   bool _disposed = false;
+  bool _processEnded = false;
+  bool get hasExited => _processEnded;
 
   int? _viewportColumns;
   int? _viewportRows;
@@ -235,7 +250,33 @@ class TerminalSession extends PaneItem {
   TerminalStatus get status => _status;
 
   HarnessKind? _activeHarness;
-  HarnessKind? get activeHarness => _activeHarness;
+  HarnessKind? _remoteHookHarness;
+  HarnessKind? get activeHarness => _activeHarness ?? _remoteHookHarness;
+
+  /// A remote PID cannot be probed in this client's namespace. An owned
+  /// terminal's own hook can supply identity without inventing it from config.
+  void observeRemoteHookHarness(AgentHarness? harness) {
+    if (!attachmentsRemote) return;
+    final next = switch (harness) {
+      AgentHarness.claude => HarnessKind.claudeCode,
+      AgentHarness.codex => HarnessKind.codex,
+      AgentHarness.pi => HarnessKind.pi,
+      null => null,
+    };
+    if (_remoteHookHarness == next) return;
+    _remoteHookHarness = next;
+    notifyListeners();
+  }
+
+  /// PID do shell/PTY local. Ausente quando o terminal roda em host remoto.
+  int? get rootProcessId => _gateway.rootProcessId;
+  bool get processMetricsAreRemote => _gateway is RemoteProcessMetricsGateway;
+  Future<ProcessMetricsSnapshot> readRemoteProcessMetrics() =>
+      (_gateway as RemoteProcessMetricsGateway).readRemoteProcessMetrics();
+
+  /// Linux PID in the selected WSL distro. Never inferred from the Windows
+  /// `wsl.exe` PID because the two namespaces are unrelated.
+  int? get wslProcessId => _gateway.wslProcessId;
 
   /// `true` enquanto o harness está processando um turno (acende o spinner).
   @override
@@ -244,12 +285,35 @@ class TerminalSession extends PaneItem {
   /// Perfil que subiu esta aba (login shell, PowerShell, `Ubuntu (WSL)`…).
   /// Guardado pra fatia 3 (dropdown do `+`) e pra restauração da aba no perfil
   /// em que ela nasceu.
+  @override
+  final TerminalOwner owner;
+
   final TerminalProfile profile;
 
   /// Session-id e transcript do agente rodando nesta aba, capturados dos hooks.
   /// Servem pra retomar a sessão no restore da aba e pra ler o `.jsonl`.
   String? claudeSessionId;
   String? transcriptPath;
+
+  int? reportedContextTokens;
+  int? reportedContextWindow;
+  DateTime? reportedContextAt;
+
+  void clearGraphMetrics() {
+    if (reportedContextAt == null) return;
+    reportedContextTokens = null;
+    reportedContextWindow = null;
+    reportedContextAt = null;
+    notifyListeners();
+  }
+
+  void applyGraphMetrics(int tokens, int window) {
+    if (tokens < 0 || window <= 0) return;
+    reportedContextTokens = tokens;
+    reportedContextWindow = window;
+    reportedContextAt = DateTime.now();
+    notifyListeners();
+  }
 
   /// Qual harness emitiu o [claudeSessionId]. Sem isso o restore montaria
   /// sempre `claude --resume <id>` — que falha com "No conversation found" se o
@@ -450,48 +514,131 @@ class TerminalSession extends PaneItem {
   ///
   /// Existe para o botão de copiar da barra de teclas do mobile: lá não há
   /// atalho de teclado nem menu de contexto, então o único caminho é este.
-  /// Usa o mesmo `Pasteboard` do paste (e não o `Clipboard` do Flutter) pra a
-  /// aba ficar com um clipboard só, coerente nos dois sentidos.
+  /// O serviço aguarda a mesma chamada Flutter usada por Pasteboard 0.4.0 em
+  /// desktop, observando falhas assíncronas. Leituras de texto/imagens/arquivos
+  /// continuam no backend existente de paste. Ver TextClipboardService.
   void copySelection() {
     final text = terminal.selectedText();
     if (text.isEmpty) return;
-    Pasteboard.writeText(text);
+    TextClipboardService.instance.write(text, operation: 'terminal_session');
   }
 
-  /// Cola do clipboard no terminal, com suporte a **imagem**.
-  ///
-  /// Se há uma imagem no clipboard, manda o byte de Ctrl+V (`\x16`) pro harness
-  /// em primeiro plano (claude/codex/pi) — todos eles, ao receber `\x16`, leem a
-  /// imagem do clipboard e a anexam (claude mostra `[Image #1]`, o pi grava num
-  /// `.png` temporário). Sem imagem, faz o paste de texto normal (respeitando o
-  /// bracketed paste mode).
-  ///
-  /// Por que existe: o `TerminalView` só cola texto (via `Clipboard`, que não lê
-  /// imagem) e, no macOS, o caminho de IME engole o Ctrl+V cru (vira `pageDown`),
-  /// então o `\x16` nunca era gerado e a imagem nunca chegava ao harness.
-  Future<void> pasteFromClipboard() async {
-    final image = await Pasteboard.image;
-    if (image != null && image.isNotEmpty) {
-      _gateway.write(const [
-        0x16,
-      ]); // Ctrl+V: o harness lê a imagem do clipboard.
-      return;
-    }
-    final text = await Pasteboard.text;
-    if (text != null && text.isNotEmpty) {
-      terminal.paste(text);
-      return;
-    }
-    // Windows: `Pasteboard.image` só lê `CF_DIB`; muitos apps (browsers, algumas
-    // ferramentas de captura) põem a imagem só como PNG/formato registrado →
-    // devolve `null` e o `\x16` nunca ia, então a imagem não chegava no harness.
-    // Sem texto no clipboard, é provável ser uma imagem que não conseguimos ler
-    // — manda `\x16` mesmo assim pro harness (claude/codex/pi) ler o clipboard
-    // ele mesmo. macOS/Linux não precisam: lá o `Pasteboard.image` já funciona.
-    if (defaultTargetPlatform == TargetPlatform.windows) {
-      _gateway.write(const [0x16]);
-    }
+  final TerminalAttachmentService? attachmentService;
+  final String attachmentProjectRoot;
+  final bool attachmentsRemote;
+  TerminalAttachmentFeedback? attachmentFeedback;
+  Future<void> _attachmentQueue = Future<void>.value();
+
+  /// Quanto tempo o aviso de anexo ("Local references inserted.") fica na
+  /// tela antes de sumir sozinho. Falhas ficam 3x mais; "importing" fica até
+  /// ser substituído. Antes o aviso só saía pelo X e ficava lá para sempre.
+  final Duration attachmentFeedbackTtl;
+  Timer? _attachmentFeedbackTimer;
+
+  void clearAttachmentFeedback() {
+    _attachmentFeedbackTimer?.cancel();
+    _attachmentFeedbackTimer = null;
+    if (_disposed) return;
+    attachmentFeedback = null;
+    notifyListeners();
   }
+
+  void _reportAttachment(TerminalAttachmentFeedback feedback) {
+    if (_disposed) return;
+    _attachmentFeedbackTimer?.cancel();
+    _attachmentFeedbackTimer = null;
+    // A native image paste shows up in the agent's own prompt, so a banner
+    // saying so is noise. Clear any "importing" status instead.
+    attachmentFeedback = feedback.notice == TerminalAttachmentNotice.nativeImage
+        ? null
+        : feedback;
+    final ttl = switch (feedback.notice) {
+      TerminalAttachmentNotice.referenced => attachmentFeedbackTtl,
+      TerminalAttachmentNotice.failed ||
+      TerminalAttachmentNotice.remoteUnavailable => attachmentFeedbackTtl * 3,
+      TerminalAttachmentNotice.importing ||
+      TerminalAttachmentNotice.nativeImage => null,
+    };
+    if (ttl != null) {
+      _attachmentFeedbackTimer = Timer(ttl, clearAttachmentFeedback);
+    }
+    if (kDebugMode && feedback.notice != TerminalAttachmentNotice.importing) {
+      DiagnosticsLog.instance.log(
+        'terminal-attachments',
+        'tab=$id engine=${terminal.engine.name} result=${feedback.notice.name}',
+      );
+    }
+    notifyListeners();
+  }
+
+  /// Capture the target now, never look up the active terminal after an await.
+  Future<void> _enqueueAttachment(
+    Future<TerminalClipboardContent> Function() read,
+  ) {
+    final service = attachmentService;
+    if (_disposed || service == null) return Future<void>.value();
+    final target = TerminalAttachmentTarget(
+      // The system workspace has no project path. Keep its imports in the
+      // terminal's own spawn directory, captured with the target at the gesture.
+      projectRoot: attachmentProjectRoot.isNotEmpty
+          ? attachmentProjectRoot
+          : (_gateway.spawnDirectory?.path ?? workingDirectory),
+      profile: profile,
+      remote: attachmentsRemote,
+      isWindows: defaultTargetPlatform == TargetPlatform.windows,
+      harness: activeHarness,
+    );
+    // Start the clipboard read at the gesture, before waiting for earlier copies.
+    final content = read().then<(TerminalClipboardContent?, Object?)>(
+      (value) => (value, null),
+      onError: (Object error) => (null, error),
+    );
+    _attachmentQueue = _attachmentQueue.then((_) async {
+      if (_disposed) return;
+      try {
+        final (snapshot, error) = await content;
+        if (_disposed) return;
+        if (error != null) throw error;
+        if (kDebugMode) {
+          DiagnosticsLog.instance.log(
+            'terminal-attachments',
+            'tab=$id engine=${terminal.engine.name} profile=${profile.id} '
+                'harness=${target.harness?.name ?? "none"} remote=${target.remote} '
+                'files=${snapshot!.files.length} imageBytes=${snapshot.image?.length ?? 0} '
+                'textLength=${snapshot.text?.length ?? 0}',
+          );
+        }
+        await service.deliver(
+          content: snapshot!,
+          target: target,
+          isAlive: () => !_disposed,
+          nativeTargetIsCurrent: () => activeHarness == target.harness,
+          paste: (text) {
+            if (!_disposed) terminal.paste(text);
+          },
+          sendKeys: (keys) {
+            if (!_disposed) _gateway.write(keys);
+          },
+          feedback: _reportAttachment,
+        );
+      } catch (error) {
+        _reportAttachment(
+          TerminalAttachmentFeedback(
+            TerminalAttachmentNotice.failed,
+            detail: '$error',
+          ),
+        );
+      }
+    });
+    return _attachmentQueue;
+  }
+
+  Future<void> pasteFromClipboard() =>
+      _enqueueAttachment(() => attachmentService!.clipboard.read());
+
+  Future<void> importDroppedPaths(List<String> paths) => _enqueueAttachment(
+    () async => TerminalClipboardContent(files: List.unmodifiable(paths)),
+  );
 
   /// Acumula a saída no registro de scrollback, rastreando alt-screen (não grava
   /// estado de TUI) e limitando o tamanho. Agenda o flush em disco (~1s).
@@ -587,6 +734,25 @@ class TerminalSession extends PaneItem {
     );
   }
 
+  Future<void>? _stopProcess;
+
+  /// Stop without disposing the controller while its view is mounted. The
+  /// owning app can abort closing on failure and safely retry later.
+  Future<void> stopProcess() {
+    final pending = _stopProcess;
+    if (pending != null) return pending;
+    late final Future<void> operation;
+    operation = Future<void>.sync(_gateway.kill).catchError((
+      Object e,
+      StackTrace st,
+    ) {
+      if (identical(_stopProcess, operation)) _stopProcess = null;
+      Error.throwWithStackTrace(e, st);
+    });
+    _stopProcess = operation;
+    return operation;
+  }
+
   @override
   Future<void> dispose() async {
     _disposed = true;
@@ -594,6 +760,7 @@ class TerminalSession extends PaneItem {
     _notifyDebounce?.cancel();
     _saveDebounce.dispose();
     _startupTimer?.cancel();
+    _attachmentFeedbackTimer?.cancel();
     for (final t in _harnessKickTimers) {
       t.cancel();
     }
@@ -603,7 +770,7 @@ class TerminalSession extends PaneItem {
     ); // best-effort: persiste o estado final (inclui app-quit).
     await _sub?.cancel();
     _coalescer.dispose();
-    await _gateway.kill();
+    await stopProcess();
     terminal.dispose();
     super.dispose();
   }

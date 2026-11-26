@@ -7,6 +7,8 @@ import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
+import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
+import 'package:cockpit/app/core/ui/file_operation_error_message.dart';
 import 'package:cockpit/app/cockpit/ui/session/document_host.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_markdown.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/code_editor.dart';
@@ -16,6 +18,7 @@ import 'package:cockpit/app/core/data/lsp/lsp_launchers.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_text_edit.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_path_breadcrumb.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/preview_edit_button.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
@@ -32,6 +35,10 @@ import 'package:flutter_modular/flutter_modular.dart';
 // SelectableScroll, código em volta do Text) — em volta do scroll a seleção
 // escorrega ao rolar com Interface size != 14; ver [SelectableScroll].
 // SelectionContainer.disabled (via shadcn/widgets) tira o gutter da seleção.
+// Keep the SDK facade compatible with shadcn's Material localizations on
+// pre-extraction Flutter. A direct material_ui import breaks selection on
+// the supported stable SDK; migrate with the app's Material theme bridge.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart' show SelectionArea;
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -51,6 +58,7 @@ class FileViewer extends StatefulWidget {
     required this.onSave,
     this.active = true,
     this.focused = true,
+    this.allowLocalFileSystem = true,
   });
 
   final FileViewerSession session;
@@ -65,6 +73,10 @@ class FileViewer extends StatefulWidget {
   /// `true` quando esta aba está ativa **e** a pane focada — aí o editor recebe
   /// o foco do teclado automaticamente (digitar direto ao selecionar a aba).
   final bool focused;
+
+  /// Remote documents use their explicit DocumentHost only, including reloads.
+  /// Native web previews and external file-based formatters require local IO.
+  final bool allowLocalFileSystem;
 
   @override
   State<FileViewer> createState() => _FileViewerState();
@@ -154,9 +166,25 @@ class _FileViewerState extends State<FileViewer> {
         _ => null,
       };
 
+  bool _wordWrapFor(bool? chosen) =>
+      fileEditorWordWrap(chosen: chosen, language: _language);
+
+  /// ⌥Z / View → Toggle Word Wrap: inverte a quebra do arquivo aberto (ver
+  /// [toggledEditorWordWrap]).
+  void _toggleWordWrap() {
+    final settings = context.read<SettingsController>();
+    settings.setEditorWordWrap(
+      toggledEditorWordWrap(
+        chosen: settings.settings.editorWordWrap,
+        language: _language,
+      ),
+    );
+  }
+
   /// Webview inline disponível (macOS/Windows)? No Linux o preview de markdown
   /// segue no gpt_markdown e HTML não tem modo renderizado (plano 58).
-  static final bool _webPreview = BrowserCapability.resolve().isInline;
+  static final bool _inlineBrowser = BrowserCapability.resolve().isInline;
+  bool get _webPreview => widget.allowLocalFileSystem && _inlineBrowser;
 
   /// Arquivo `.html`/`.htm` — ganha preview renderizado quando há webview.
   bool get _isHtml {
@@ -249,6 +277,9 @@ class _FileViewerState extends State<FileViewer> {
     // servidor novo com raiz no SDK (isso indexaria o pacote inteiro e travava
     // a UI). Ver `LspServerPool._rootFor`. Arquivo solto sem workspace nenhum
     // continua degradando pro highlight léxico, sem crash.
+    // Untitled (⌘N): não há arquivo, logo não há documento pro servidor.
+    // Quando o buffer for salvo a sessão é retargada e este método roda de novo.
+    if (widget.session.scratch || path.isEmpty) return;
     _lspOn = true;
     final uri = Uri.file(path).toString();
     unawaited(vm.lspOpenDocument(path, text, widget.session.projectId));
@@ -451,6 +482,10 @@ class _FileViewerState extends State<FileViewer> {
           _refocusEditor();
         },
         onFormat: () => _format().whenComplete(_refocusEditor),
+        onToggleWordWrap: () {
+          _toggleWordWrap();
+          _refocusEditor();
+        },
       );
     } else {
       bridge.clear(this);
@@ -506,6 +541,14 @@ class _FileViewerState extends State<FileViewer> {
   }
 
   void _toggleEditing() {
+    final host = documentHostOf(context);
+    if (!_editing &&
+        _hasPreview &&
+        host is CockpitViewModel &&
+        host.canEditPreviewInNeovim(widget.session.projectId)) {
+      unawaited(_editWithNeovim(host));
+      return;
+    }
     setState(() => _editing = !_editing);
     // Ao iniciar a edição, transforma preview em aba normal.
     if (_editing) {
@@ -513,6 +556,17 @@ class _FileViewerState extends State<FileViewer> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _focus.requestFocus();
       });
+    }
+  }
+
+  Future<void> _editWithNeovim(CockpitViewModel vm) async {
+    final opened = await vm.editPreviewInNeovim(
+      widget.session.projectId,
+      widget.session.path,
+    );
+    if (!opened && mounted) {
+      setState(() => _editing = true);
+      widget.session.pin();
     }
   }
 
@@ -570,6 +624,7 @@ class _FileViewerState extends State<FileViewer> {
   /// Comando de formatador externo (`%FILE%`) configurado pra linguagem deste
   /// arquivo, ou `null`. Lido das Configurações (app-scoped).
   String? _externalFormatter() {
+    if (!widget.allowLocalFileSystem) return null;
     final lang = languageForPath(widget.session.path)?.id;
     if (lang == null) return null;
     return context.read<SettingsController>().settings.lspFormatters[lang];
@@ -599,13 +654,34 @@ class _FileViewerState extends State<FileViewer> {
     }
 
     final content = ctrl.text;
+    // Untitled (⌘N): pede o nome e materializa o arquivo na raiz do workspace
+    // (VSCode-style). A VM retarga a sessão; o listener de sessão recria o
+    // controller com a linguagem da extensão escolhida e liga o LSP.
+    if (widget.session.scratch) {
+      final name = await _promptScratchName();
+      if (name == null || !mounted) return false;
+      final result = await context.read<CockpitViewModel>().saveScratchAs(
+        widget.session.id,
+        name,
+        content,
+      );
+      if (!mounted) return false;
+      final error = result.fold((_) => null, (f) => f);
+      if (error != null) {
+        _showSaveError(fileOperationErrorMessage(context, error));
+        return false;
+      }
+      _baseline = content;
+      _updateDirty(false);
+      return true;
+    }
     setState(() => _saving = true);
     final ok = await widget.onSave(content);
     if (!mounted) return ok;
     setState(() => _saving = false);
     if (ok) {
       _baseline = content;
-      _updateDirty(false);
+      _updateDirty(ctrl.text != content);
     }
 
     // Formatador externo: roda no arquivo já gravado e relê.
@@ -613,6 +689,80 @@ class _FileViewerState extends State<FileViewer> {
       await _runExternalFormatter(external);
     }
     return ok;
+  }
+
+  /// Prompt do nome do arquivo pro untitled (basename, extensão livre).
+  Future<String?> _promptScratchName() {
+    final tr = context.t.cockpit.fileViewer;
+    final ctrl = TextEditingController(text: tr.untitledDefaultName);
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        final colors = context.colors;
+        return AlertDialog(
+          title: Text(
+            tr.saveAs,
+            style: context.typo.title.copyWith(
+              fontSize: 15,
+              color: colors.text,
+            ),
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: TextField(
+              controller: ctrl,
+              autofocus: true,
+              style: context.typo.mono.copyWith(
+                fontSize: 12.5,
+                color: colors.text,
+              ),
+              border: Border.all(color: colors.border),
+              borderRadius: BorderRadius.circular(6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              onSubmitted: (v) => Navigator.of(context).pop(v),
+            ),
+          ),
+          actions: [
+            GhostButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(context.t.common.cancel),
+            ),
+            PrimaryButton(
+              onPressed: () => Navigator.of(context).pop(ctrl.text),
+              child: Text(context.t.common.save),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showSaveError(String message) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          context.t.cockpit.fileViewer.couldNotSave,
+          style: context.typo.title.copyWith(
+            fontSize: 15,
+            color: context.colors.text,
+          ),
+        ),
+        content: Text(
+          message,
+          style: context.typo.body.copyWith(
+            fontSize: 13,
+            color: context.colors.text2,
+          ),
+        ),
+        actions: [
+          PrimaryButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(context.t.common.ok),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Formata sob demanda (⇧⌘F). Externo (file-based) tem precedência; senão
@@ -656,6 +806,7 @@ class _FileViewerState extends State<FileViewer> {
 
   /// Roda o formatador externo no arquivo em disco e relê o buffer.
   Future<void> _runExternalFormatter(String command) async {
+    if (!widget.allowLocalFileSystem) return;
     final result = await runFormatterCommand(command, widget.session.path);
     if (!mounted) return;
     await result.fold((_) => _reloadFromDisk(), (_) async {});
@@ -664,8 +815,10 @@ class _FileViewerState extends State<FileViewer> {
   /// Relê o conteúdo do disco para o buffer (após o formatador externo).
   Future<void> _reloadFromDisk() async {
     try {
-      final fresh = await File(widget.session.path).readAsString();
-      if (!mounted) return;
+      final fresh = widget.allowLocalFileSystem
+          ? await File(widget.session.path).readAsString()
+          : await _vm?.readTextAt(widget.session.path);
+      if (!mounted || fresh == null) return;
       final ctrl = _ctrl;
       if (ctrl == null || ctrl.text == fresh) return;
       _applyToBuffer(fresh);
@@ -806,6 +959,12 @@ class _FileViewerState extends State<FileViewer> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final host = documentHostOf(context);
+    final canEditInNeovim =
+        host is CockpitViewModel &&
+        context.select<CockpitViewModel, bool>(
+          (vm) => vm.canEditPreviewInNeovim(widget.session.projectId),
+        );
     final editable = _editableText != null;
     // Texto/código sem preview edita direto; markdown/svg só editam quando o
     // switch está em "Source".
@@ -899,6 +1058,7 @@ class _FileViewerState extends State<FileViewer> {
             hasPreview: _hasPreview,
             editing: editingNow,
             previewing: _hasPreview && !_editing,
+            editInNeovim: canEditInNeovim && !editingNow,
             dirty: _dirty,
             saving: _saving,
             onToggle: _toggleEditing,
@@ -951,6 +1111,11 @@ class _FileViewerState extends State<FileViewer> {
           shift: true,
         ): () =>
             _cloneLines(down: false),
+        // Word wrap (⌥Z/Alt+Z, como no VS Code) no escopo do editor: no macOS o
+        // menu nativo dispara antes; fora dele só o editor focado vê a tecla
+        // (um atalho global roubaria o Alt+Z dos terminais).
+        const SingleActivator(LogicalKeyboardKey.keyZ, alt: true):
+            _toggleWordWrap,
       },
       child: content,
     );
@@ -966,6 +1131,11 @@ class _FileViewerState extends State<FileViewer> {
             controller: ctrl,
             focusNode: _focus,
             filePath: widget.session.path,
+            wordWrap: _wordWrapFor(
+              context.select<SettingsController, bool?>(
+                (c) => c.settings.editorWordWrap,
+              ),
+            ),
             revealLine: widget.session.revealLine,
             revealSelect: widget.session.revealSelect,
             revealTick: widget.session.revealTick,
@@ -1017,6 +1187,7 @@ class _Toolbar extends StatelessWidget {
     required this.hasPreview,
     required this.editing,
     required this.previewing,
+    required this.editInNeovim,
     required this.dirty,
     required this.saving,
     required this.onToggle,
@@ -1034,6 +1205,7 @@ class _Toolbar extends StatelessWidget {
 
   /// Está mostrando o render (só faz sentido com [hasPreview]).
   final bool previewing;
+  final bool editInNeovim;
   final bool dirty;
   final bool saving;
   final VoidCallback onToggle;
@@ -1081,7 +1253,13 @@ class _Toolbar extends StatelessWidget {
                 ),
               ),
             ),
-          if (hasPreview) ...[
+          if (hasPreview && editInNeovim && previewing) ...[
+            const SizedBox(width: 4),
+            PreviewEditButton(
+              onPressed: onToggle,
+              label: context.t.cockpit.paneView.editInNeovim,
+            ),
+          ] else if (hasPreview) ...[
             const SizedBox(width: 4),
             _Segmented(
               leftLabel: context.t.cockpit.fileViewer.preview,
@@ -1362,4 +1540,27 @@ class _ImageViewState extends State<_ImageView> {
       ),
     );
   }
+}
+
+/// Linguagens de texto corrido: sem escolha do usuário, quebram linha.
+const _wrapByDefault = {'markdown', 'md', 'txt', 'text'};
+
+/// Quebra de linha efetiva do editor de arquivos: a escolha do usuário
+/// ([chosen], global — `AppSettings.editorWordWrap`) ou, sem ela, o padrão da
+/// [language] do arquivo (ligado em markdown/texto puro, desligado no resto).
+@visibleForTesting
+bool fileEditorWordWrap({required bool? chosen, required String? language}) =>
+    chosen ?? _wrapByDefault.contains(language);
+
+/// Escolha gravada pelo ⌥Z num arquivo da [language]. Desligar grava `false`
+/// (nenhum arquivo quebra). Ligar num arquivo de texto corrido volta ao padrão
+/// da linguagem (`null`), e não liga o código junto; ligar num arquivo de
+/// código grava `true` (todo arquivo), único valor que quebra esse arquivo.
+@visibleForTesting
+bool? toggledEditorWordWrap({
+  required bool? chosen,
+  required String? language,
+}) {
+  if (fileEditorWordWrap(chosen: chosen, language: language)) return false;
+  return _wrapByDefault.contains(language) ? null : true;
 }

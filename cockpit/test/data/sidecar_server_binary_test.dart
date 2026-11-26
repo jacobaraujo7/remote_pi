@@ -8,6 +8,24 @@ import 'package:flutter_test/flutter_test.dart';
 /// achava mais o snapshot anexado e o sidecar nunca subia. O bundle passou a
 /// trazer uma fatia por arquitetura, e é o resolver que escolhe.
 void main() {
+  test('private sidecar never installs global agent hooks or skills', () {
+    final isolated = SidecarTerminalConnector.serverArguments(
+      socketPath: 'private/status.sock',
+      isolatedRuntime: true,
+    );
+    final normal = SidecarTerminalConnector.serverArguments(
+      socketPath: 'normal/status.sock',
+      isolatedRuntime: false,
+    );
+    expect(isolated, containsAll(['--no-hooks', '--no-skills']));
+    expect(normal, isNot(contains('--no-hooks')));
+    expect(normal, isNot(contains('--no-skills')));
+    for (final args in [isolated, normal]) {
+      expect(args, contains('--exit-on-parent-close'));
+      expect(args, contains('--exit-on-idle'));
+    }
+  });
+
   late Directory bin;
 
   setUp(() {

@@ -90,6 +90,33 @@ void main() {
   });
 
   group('JsonWorkspaceLayoutStore', () {
+    test('migration checkpoint confirms the actual persisted layout', () async {
+      final layouts = JsonWorkspaceLayoutStore(store);
+      final layout = <String, dynamic>{
+        'sessions': {
+          'app': {'migration': 'reserved'},
+        },
+      };
+      await layouts.checkpoint('worktree', layout);
+      JsonStateStore.resetCacheForTesting();
+      final reopened = await JsonStateStore.open(tmp.path, 'box');
+      expect(await JsonWorkspaceLayoutStore(reopened).load('worktree'), layout);
+    });
+
+    test(
+      'migration checkpoint reports a swallowed ordinary-store disk failure',
+      () async {
+        final layouts = JsonWorkspaceLayoutStore(store);
+        await layouts.save('worktree', {'before': true});
+        await File(store.path).delete();
+        await Directory(store.path).create();
+        await expectLater(
+          layouts.checkpoint('worktree', {'mustPersist': true}),
+          throwsA(isA<FileSystemException>()),
+        );
+      },
+    );
+
     test('roundtrip como String JSON', () async {
       final s = JsonWorkspaceLayoutStore(store);
       await s.save('p1', {

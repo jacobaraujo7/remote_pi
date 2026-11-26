@@ -76,13 +76,32 @@ const FLAVOR: Option<&str> = option_env!("COCKPIT_FLAVOR");
 /// pelo app instalado, que pode ser bem mais velho — deu "tab @focused does not
 /// exist" porque aquele app nem conhecia o sentinela. O outro flavor continua
 /// como fallback: melhor falar com o app errado do que não falar com nenhum.
+fn transport_home_from(isolated: Option<String>, home: Option<String>) -> Option<String> {
+    match isolated {
+        Some(root) => {
+            let root = root.trim();
+            std::path::Path::new(root)
+                .is_absolute()
+                .then(|| root.to_owned())
+        }
+        None => home,
+    }
+}
+
+fn transport_home() -> Option<String> {
+    transport_home_from(
+        env_non_empty("COCKPIT_ISOLATED_ROOT"),
+        crate::util::home_dir(),
+    )
+}
+
 #[cfg(unix)]
 fn candidate_sockets() -> Vec<String> {
     let mut out = Vec::new();
     if let Some(path) = env_non_empty("COCKPIT_STATUS_SOCK") {
         out.push(path);
     }
-    if let Some(home) = crate::util::home_dir() {
+    if let Some(home) = transport_home() {
         let release = format!("{home}/.cockpit/status.sock");
         let debug = format!("{home}/.cockpit/status-debug.sock");
         if FLAVOR == Some("debug") {
@@ -101,7 +120,7 @@ fn candidate_sockets() -> Vec<String> {
 /// rodada de FORA de uma aba (sem env herdada). Mesma ordem de flavor do POSIX.
 #[cfg(windows)]
 fn endpoint_from_file() -> Option<(u16, Option<String>)> {
-    let home = crate::util::home_dir()?;
+    let home = transport_home()?;
     let mut names = vec!["status.json", "status-debug.json"];
     if FLAVOR == Some("debug") {
         names.reverse();
@@ -182,6 +201,91 @@ pub fn transport_configured() -> bool {
     endpoint_from_file().is_some()
 }
 
+/// Native Windows forwarding runs before a Flutter engine exists. Unlike a
+/// terminal command it must ignore inherited caller/socket env and never try
+/// another flavor or another user's live instance.
+pub fn forward_native_open(flavor: &str, arguments: &[String]) -> bool {
+    let suffix = match flavor {
+        "debug" => "-debug",
+        "release" => "",
+        _ => return false,
+    };
+    let Some(home) = transport_home() else {
+        return false;
+    };
+    let endpoint = std::path::Path::new(&home)
+        .join(".cockpit")
+        .join(format!("status{suffix}.json"));
+    let Ok(cwd) = std::env::current_dir() else {
+        return false;
+    };
+    let files: Vec<String> = arguments
+        .iter()
+        .filter_map(|raw| {
+            if raw.is_empty() || raw.starts_with('-') {
+                return None;
+            }
+            let path = cwd.join(raw);
+            (path.is_file() || path.is_dir()).then(|| path.to_string_lossy().into_owned())
+        })
+        .collect();
+    if files.is_empty() {
+        return false;
+    }
+    forward_native_open_at(&endpoint, &files)
+}
+
+fn forward_native_open_at(endpoint: &std::path::Path, files: &[String]) -> bool {
+    use std::net::{Ipv4Addr, SocketAddr, TcpStream};
+    use std::time::Instant;
+    let attempt = || -> Option<bool> {
+        let mut raw = String::new();
+        std::fs::File::open(endpoint)
+            .ok()?
+            .take(64 * 1024)
+            .read_to_string(&mut raw)
+            .ok()?;
+        let metadata: Value = serde_json::from_str(&raw).ok()?;
+        let port = u16::try_from(metadata.get("port")?.as_u64()?).ok()?;
+        let token = metadata.get("tok")?.as_str()?;
+        if port == 0 || token.is_empty() || files.is_empty() {
+            return None;
+        }
+        let address = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
+        let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(2)).ok()?;
+        stream
+            .set_write_timeout(Some(Duration::from_secs(2)))
+            .ok()?;
+        let request = json!({"type":"cmd", "cmd":"open-document", "tok":token,
+            "args":{"paths":files}});
+        writeln!(stream, "{request}").ok()?;
+        stream.flush().ok()?;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut response = Vec::new();
+        let mut chunk = [0_u8; 4096];
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return None;
+            }
+            stream.set_read_timeout(Some(remaining)).ok()?;
+            let count = stream.read(&mut chunk).ok()?;
+            if count == 0 {
+                return None;
+            }
+            response.extend_from_slice(&chunk[..count]);
+            if response.len() > 64 * 1024 {
+                return None;
+            }
+            if let Some(end) = response.iter().position(|byte| *byte == b'\n') {
+                let result: Value = serde_json::from_slice(&response[..end]).ok()?;
+                return Some(result.get("ok") == Some(&Value::Bool(true)));
+            }
+        }
+    };
+    attempt().unwrap_or(false)
+}
+
 /// Envia uma requisição e devolve a resposta decodificada.
 ///
 /// Fora de um terminal do Cockpit, encerra com exit 3 (mesma mensagem da CLI
@@ -196,6 +300,9 @@ no socket found in ~/.cockpit). Is the app running?",
         );
     }
     req["type"] = json!("cmd");
+    if let Some(caller) = crate::util::self_tab_id() {
+        req["callerTabId"] = json!(caller);
+    }
     if let Ok(tok) = std::env::var("COCKPIT_STATUS_TOKEN") {
         req["tok"] = json!(tok);
     } else if let Some((_, Some(tok))) = endpoint_from_file() {
@@ -275,4 +382,31 @@ pub fn error_text(resp: &Value) -> String {
 /// Encerra com o erro da resposta (exit 1) — padrão dos comandos "simples".
 pub fn fail_with(resp: &Value) -> ! {
     die(&format!("cockpit: {}", error_text(resp)), 1)
+}
+
+#[cfg(test)]
+mod runtime_namespace_tests {
+    use super::transport_home_from;
+    #[test]
+    fn invalid_isolated_root_never_falls_back_to_user_home() {
+        assert_eq!(
+            transport_home_from(Some("relative/path".into()), Some("real-home".into())),
+            None
+        );
+    }
+    #[test]
+    fn absent_isolation_preserves_the_normal_home() {
+        assert_eq!(
+            transport_home_from(None, Some("real-home".into())),
+            Some("real-home".into())
+        );
+    }
+    #[test]
+    fn absolute_isolated_root_replaces_only_transport_discovery() {
+        let root = std::env::temp_dir().to_string_lossy().to_string();
+        assert_eq!(
+            transport_home_from(Some(format!("  {root}  ")), Some("real-home".into())),
+            Some(root)
+        );
+    }
 }

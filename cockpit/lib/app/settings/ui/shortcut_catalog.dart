@@ -72,6 +72,10 @@ List<ShortcutSection> buildShortcutCatalog() {
         shift,
         'F',
       ], note: 'When a file editor is focused.'),
+      AppShortcut('Toggle Word Wrap', [
+        alt,
+        'Z',
+      ], note: 'When a file editor is focused.'),
     ]),
     ShortcutSection('View', <AppShortcut>[
       AppShortcut('Zoom In', [cmd, '=']),

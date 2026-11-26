@@ -7,6 +7,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/data/setup/remote_pi_resolver.dart';
+
 import '../../domain/contracts/telemetry_store.dart';
 import 'sqlite_telemetry_store.dart';
 
@@ -21,10 +23,19 @@ class TelemetryStoreRegistry implements TelemetryStoreProvider {
   final TelemetryStoreOpener _opener;
   final _stores = <String, Future<TelemetryStore>>{};
 
-  /// Diretório das bases: `<applicationSupport>/telemetry/`.
-  static Future<String> directory() async {
-    final support = await getApplicationSupportDirectory();
-    return p.join(support.path, 'telemetry');
+  /// Cache local; isolated runs never open the installed app's databases.
+  /// Regular storage relocation does not relocate this cache.
+  static Future<String> directory({
+    Map<String, String>? environment,
+    Future<Directory> Function()? applicationSupportDirectory,
+  }) async {
+    final isolated = cockpitIsolatedRoot(environment: environment);
+    final root =
+        isolated ??
+        (await (applicationSupportDirectory ??
+                getApplicationSupportDirectory)())
+            .path;
+    return p.join(root, 'telemetry');
   }
 
   static Future<TelemetryStore> _openOnDisk(String workspaceId) async {

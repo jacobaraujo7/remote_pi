@@ -1,5 +1,6 @@
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
+import '../session/orchestration_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
@@ -20,6 +21,30 @@ Future<bool> requestCloseTab(
   PaneItem? item,
   VoidCallback onClose,
 ) async {
+  if (item is OrchestrationSession) {
+    final file = item.filePresentation;
+    if (file?.dirty == true) {
+      final allowed = await requestCloseTab(context, file!.viewer, () {
+        if (identical(item.filePresentation, file)) {
+          item.closeFile(discard: true);
+        }
+      });
+      if (!allowed || !context.mounted) return false;
+    }
+    final tr = context.t.orchestration;
+    final confirmed = await showConfirmDialog(
+      context,
+      title: item.title,
+      message: '${tr.closeTerminal}: ${item.terminals.sessions.length}',
+      confirmLabel: tr.closeTerminal,
+      danger: true,
+    );
+    if (!confirmed || !context.mounted) return false;
+    final result = await item.prepareClose();
+    if (result is Failure || !context.mounted) return false;
+    onClose();
+    return true;
+  }
   if (item is NeovimSession) {
     final modified = await item.hasModifiedBuffers();
     if (!context.mounted) return false;
@@ -65,6 +90,21 @@ Future<bool> requestCloseTab(
 /// isso o atalho apagaria a única pane e deixaria o workspace sem nada.
 Future<void> closeActiveTab(BuildContext context) async {
   final vm = context.read<CockpitViewModel>();
+  final owner = vm.activeOrchestration;
+  final file = owner?.filePresentation;
+  if (owner != null && file != null && owner.fileVisible) {
+    await requestCloseTab(context, file.viewer, () {
+      if (identical(owner.filePresentation, file)) {
+        owner.closeFile(discard: true);
+      }
+    });
+    return;
+  }
+  final ownedTab = owner?.terminals.keyboardTabId;
+  if (owner != null && ownedTab != null) {
+    await owner.closeTerminal(ownedTab);
+    return;
+  }
   final target = vm.focusedTab();
   if (target == null) return;
   final (paneId, tabId, item) = target;

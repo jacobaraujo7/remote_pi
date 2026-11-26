@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:path/path.dart' as paths;
 
 import 'package:cockpit/app/core/utils/executable_resolver.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -10,6 +11,24 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 /// `~/` do usuário: Windows não seta `HOME`, o equivalente é `USERPROFILE`.
 String? remotePiHome() =>
     Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+
+/// A disposable app namespace never changes the user's HOME or agent auth.
+/// Invalid explicit roots fail closed instead of falling back to the live app.
+String? cockpitIsolatedRoot({
+  Map<String, String>? environment,
+  paths.Context? context,
+}) {
+  final raw = (environment ?? Platform.environment)['COCKPIT_ISOLATED_ROOT']
+      ?.trim();
+  if (raw == null || raw.isEmpty) return null;
+  final parser = context ?? paths.context;
+  if (!parser.isAbsolute(raw)) {
+    throw ArgumentError('COCKPIT_ISOLATED_ROOT must be absolute');
+  }
+  return parser.normalize(raw);
+}
+
+String? cockpitRuntimeHome() => cockpitIsolatedRoot() ?? remotePiHome();
 
 /// Onde a **CLI interna** (`cockpit`) é materializada, e o único diretório que o
 /// app prefixa no PATH das suas abas.
@@ -24,14 +43,14 @@ String? remotePiHome() =>
 /// `~/.claude/settings.json` (global, um só), e apontar pra uma pasta de build de
 /// dev quebraria o hook no dia em que essa build sumisse.
 String? cockpitCliDir() {
-  final home = remotePiHome();
+  final home = cockpitRuntimeHome();
   if (home == null) return null;
   return '$home/.cockpit/bin${kDebugMode ? '-debug' : ''}';
 }
 
 /// Diretório estável do helper de hooks, compartilhado entre builds.
 String? cockpitHookDir() {
-  final home = remotePiHome();
+  final home = cockpitRuntimeHome();
   if (home == null) return null;
   return '$home/.cockpit/bin';
 }

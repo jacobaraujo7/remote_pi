@@ -62,3 +62,6 @@ android/key.properties
 android/keystore/
 *.jks
 *.keystore
+
+# PNGs gerados pelos testes com tag preview (flutter test --tags preview --run-skipped --update-goldens)
+test/ui/previews/

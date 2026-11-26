@@ -59,6 +59,8 @@ fn run_against_fake_app(args: &[&str], response: &str) -> (Value, String, String
         .unwrap();
 
     let request_line = server.join().unwrap();
+    let decoded: Value = serde_json::from_str(&request_line).unwrap();
+    assert_eq!(decoded["callerTabId"], "t7");
     let _ = std::fs::remove_dir_all(&dir);
     (
         serde_json::from_str(&request_line).expect("requisição não é JSON"),
@@ -72,6 +74,7 @@ fn run_against_fake_app(args: &[&str], response: &str) -> (Value, String, String
 fn send_manda_texto_em_base64_com_type_cmd() {
     let (req, _, _, code) = run_against_fake_app(&["send", "olá", "mundo"], r#"{"ok":true}"#);
     assert_eq!(req["type"], "cmd");
+    assert_eq!(req["callerTabId"], "t7");
     assert_eq!(req["cmd"], "write");
     assert_eq!(
         req["tabId"], "t7",
@@ -94,6 +97,7 @@ fn send_key_resolve_teclas_nomeadas() {
 fn tab_id_explicito_vence_o_ambiente() {
     let (req, _, _, _) = run_against_fake_app(&["send", "--tab-id", "t99", "oi"], r#"{"ok":true}"#);
     assert_eq!(req["tabId"], "t99");
+    assert_eq!(req["callerTabId"], "t7");
 }
 
 #[test]

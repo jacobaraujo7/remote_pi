@@ -5,6 +5,7 @@ import 'package:cockpit/app/cockpit/data/remote/pty_ack_batcher.dart';
 import 'package:cockpit/app/cockpit/data/remote/remote_host_connector.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
+import 'package:cockpit/app/cockpit/domain/entities/process_metrics_snapshot.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/utils/spawn_directory.dart'
     show SpawnDirectory;
@@ -19,7 +20,8 @@ import 'package:cockpit_remote/cockpit_remote.dart';
 /// - **sem fallback in-process**: um workspace remoto sem host alcançável é um
 ///   erro (o stream fecha e a aba mostra o encerramento), nunca um shell
 ///   local silencioso na máquina errada.
-class RemoteHostTerminalGateway implements TerminalGateway {
+class RemoteHostTerminalGateway
+    implements TerminalGateway, RemoteProcessMetricsGateway {
   RemoteHostTerminalGateway(this._connector);
 
   /// `.env.cockpit` do workspace REMOTO: lido no host (via `fs.read`) logo
@@ -78,6 +80,42 @@ class RemoteHostTerminalGateway implements TerminalGateway {
   // vive no host), então não expomos pid.
   @override
   int? get rootProcessId => null;
+
+  @override
+  int? get wslProcessId => null;
+
+  @override
+  Future<ProcessMetricsSnapshot> readRemoteProcessMetrics() async {
+    final id = _sessionId;
+    final service = _service;
+    if (id == null || service == null || _detached || _exited || _killed) {
+      return _unavailableRemoteMetrics('remote session unavailable');
+    }
+    try {
+      final data = await service.processMetrics(id);
+      final at = DateTime.tryParse(data['at'] as String? ?? '');
+      return ProcessMetricsSnapshot(
+        pid: (data['pid'] as num?)?.toInt() ?? 0,
+        cpuPercent: (data['cpu'] as num?)?.toDouble(),
+        rssBytes: (data['rss'] as num?)?.toInt(),
+        collectedAt: at ?? DateTime.now(),
+        source: 'host: ${data['source'] as String? ?? 'process metrics'}',
+        unavailableReason: data['reason'] as String?,
+      );
+    } catch (_) {
+      return _unavailableRemoteMetrics('host metrics unavailable');
+    }
+  }
+
+  ProcessMetricsSnapshot _unavailableRemoteMetrics(String reason) =>
+      ProcessMetricsSnapshot(
+        pid: 0,
+        cpuPercent: null,
+        rssBytes: null,
+        collectedAt: DateTime.now(),
+        source: 'remote host',
+        unavailableReason: reason,
+      );
 
   // Sem fallback de pasta: o path é do filesystem remoto, resolvido lá.
   @override

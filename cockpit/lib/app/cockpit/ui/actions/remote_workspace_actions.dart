@@ -41,8 +41,9 @@ RemoteHost? _hostById(CockpitViewModel vm, String hostId) {
   return null;
 }
 
-/// Menu do "+" da rail: Local vs Remoto, ancorado no botão. No mobile não há
-/// workspace local, então vai direto pro fluxo de host (plano 59).
+/// Menu do "+" da rail: Local, Remoto ou Clonar repositório, ancorado no
+/// botão. No mobile não há workspace local, então vai direto pro fluxo de host
+/// (plano 59).
 Future<void> newWorkspaceMenu(
   BuildContext context,
   CockpitViewModel vm,
@@ -66,13 +67,21 @@ Future<void> newWorkspaceMenu(
         label: tr.newRemote,
         icon: Icons.cloud_outlined,
       ),
+      AppMenuItem(
+        value: 'clone',
+        label: context.t.cockpit.cloneRepoDialog.menuItem,
+        icon: Icons.download_outlined,
+      ),
     ],
   );
   if (choice == null || !anchor.mounted || !context.mounted) return;
-  if (choice == 'local') {
-    await createWorkspace(context);
-  } else {
-    await newRemoteWorkspace(context, vm, anchor);
+  switch (choice) {
+    case 'local':
+      await createWorkspace(context);
+    case 'clone':
+      await cloneWorkspace(context);
+    default:
+      await newRemoteWorkspace(context, vm, anchor);
   }
 }
 

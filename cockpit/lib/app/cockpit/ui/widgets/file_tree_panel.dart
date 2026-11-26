@@ -1,6 +1,17 @@
+import 'package:cockpit/app/cockpit/ui/states/sidebar_panel.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
+import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:cockpit/app/cockpit/domain/dotnet/dotnet_solution.dart';
+import 'package:cockpit/app/cockpit/domain/dotnet/dotnet_solution_cache.dart';
+import 'package:cockpit/app/cockpit/domain/dotnet/dotnet_solution_detector.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/dotnet_solution_tree.dart';
+
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
+import 'package:cockpit/app/cockpit/domain/services/file_nesting.dart';
+import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/git_history_error.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_commit.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_history_commit.dart';
@@ -10,6 +21,7 @@ import 'package:cockpit/app/cockpit/domain/entities/notebook_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/commit_message_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/file_manager_label.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/git_history_panel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/panel_resize_handle.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
@@ -28,7 +40,15 @@ import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:flutter/gestures.dart' show HitTestResult;
+import 'package:flutter/gestures.dart'
+    show
+        GestureDisposition,
+        GestureMultiDragStartCallback,
+        HitTestResult,
+        ImmediateMultiDragGestureRecognizer,
+        MultiDragPointerState,
+        PointerDeviceKind,
+        PointerDownEvent;
 import 'package:flutter/rendering.dart' show RenderMetaData;
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -90,6 +110,8 @@ class FileTreePanel extends StatefulWidget {
     required this.rootPath,
     required this.revision,
     this.selectedPath,
+    this.activePanel,
+    this.onPanelChanged,
     required this.listChildren,
     required this.gitStatusOf,
     required this.onOpenFile,
@@ -128,6 +150,9 @@ class FileTreePanel extends StatefulWidget {
     this.tasksPanel,
     this.roots = const <WorkspaceRoot>[],
     this.sourceControlViewMode = SourceControlViewMode.list,
+    this.fileNestingEnabled = true,
+    this.fileNestingAutoExpand = false,
+    this.fileNestingPatterns = defaultFileNestingPatterns,
     this.onSourceControlViewModeChanged,
     this.onStageFile,
     this.onStageFiles,
@@ -149,7 +174,14 @@ class FileTreePanel extends StatefulWidget {
     this.commitMessageGeneratorLabel,
     this.revealPath,
     this.revealGen = 0,
+    this.loadDotnetSolution,
+    this.watchSolutionFile,
   });
+
+  /// Controlled by the workspace VM in the shell; standalone users may keep
+  /// the selection local by omitting these properties.
+  final SidebarPanel? activePanel;
+  final ValueChanged<SidebarPanel>? onPanelChanged;
 
   /// "Revelar na árvore": arquivo-alvo + geração. Quando [revealGen] muda, a
   /// árvore expande a root e os folders ancestrais de [revealPath] (uma vez) e
@@ -217,6 +249,9 @@ class FileTreePanel extends StatefulWidget {
   /// do header é o único controle: alterna aqui e persiste via
   /// [onSourceControlViewModeChanged] (não há opção equivalente em Settings).
   final SourceControlViewMode sourceControlViewMode;
+  final bool fileNestingEnabled;
+  final bool fileNestingAutoExpand;
+  final Map<String, String> fileNestingPatterns;
 
   /// Notificado quando o toggle do header troca o layout, para persistir a
   /// escolha. `null` = alterna só enquanto o painel estiver montado.
@@ -362,20 +397,16 @@ class FileTreePanel extends StatefulWidget {
   /// Largura do painel (arrastável pela página — não persistido).
   final double width;
 
+  /// Lê e analisa uma solução. `null` deixa o toggle oculto até a detecção,
+  /// e o primeiro acerto fica no cache pra não reparsear ao alternar.
+  final Future<DotnetSolutionSnapshot?> Function(String path)?
+  loadDotnetSolution;
+
+  /// Avisa quando a solução ou um projeto muda no disco.
+  final Stream<void> Function(String path)? watchSolutionFile;
+
   @override
   State<FileTreePanel> createState() => _FileTreePanelState();
-}
-
-/// Aba ativa do painel direito: árvore de arquivos, busca por conteúdo,
-/// source control ou conexões de banco (plano 51). Ordem visual no header:
-/// Files · Search · Source Control · Database.
-enum _RightPaneTab {
-  files,
-  search,
-  sourceControl,
-  database,
-  gallery,
-  telemetry,
 }
 
 enum _SourceControlView { changes, history }
@@ -389,6 +420,16 @@ class _PendingCreate {
 
 class _FileTreePanelState extends State<FileTreePanel> {
   int _localRefresh = 0;
+  List<DotnetSolutionRef> _solutions = const [];
+  bool _solutionMode = false;
+  String? _activeSolution;
+  DotnetSolutionSnapshot? _solution;
+  bool _solutionLoading = false;
+  bool _solutionFailed = false;
+  int _detectGen = 0;
+  int _loadGen = 0;
+  final List<StreamSubscription<void>> _solutionWatches = [];
+  Timer? _solutionReload;
 
   /// Geração do "Collapse all" (botão do cabeçalho, como no VS Code). Cada
   /// [_Folder] fecha ao ver uma geração nova — o estado de expansão é local a
@@ -427,17 +468,23 @@ class _FileTreePanelState extends State<FileTreePanel> {
   }
 
   /// Aba ativa do painel: árvore de arquivos, busca ou source control.
-  _RightPaneTab _tab = _RightPaneTab.files;
+  SidebarPanel _localTab = SidebarPanel.files;
+  SidebarPanel get _tab => widget.activePanel ?? _localTab;
+
+  void _selectPanel(SidebarPanel panel) {
+    setState(() => _localTab = panel);
+    widget.onPanelChanged?.call(panel);
+  }
 
   /// Source Control começa no default global e pode alternar temporariamente
   /// sem afetar a árvore principal de arquivos.
   late bool _sourceControlTree;
   _SourceControlView _sourceControlView = _SourceControlView.changes;
 
-  /// Expansão das pastas do Source Control, chaveada pelo caminho absoluto e
-  /// compartilhada entre Changes/Staged. Não removemos entradas quando uma
-  /// pasta some de uma seção: ao reaparecer na outra, conserva o estado.
-  final Map<String, bool> _sourceControlFolderExpanded = <String, bool>{};
+  /// Expansão por seção (index/working tree) e caminho absoluto. Uma pasta
+  /// pode aparecer nas duas seções simultaneamente. Entradas são mantidas
+  /// quando ela some para restaurar o estado ao reaparecer na mesma seção.
+  final Map<(bool staged, String path), bool> _sourceControlFolderExpanded = {};
 
   /// Criação inline em andamento (uma de cada vez).
   _PendingCreate? _pending;
@@ -461,6 +508,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
     _sourceControlTree =
         widget.sourceControlViewMode == SourceControlViewMode.tree;
     widget.searchFocusSignal?.addListener(_onSearchFocusRequested);
+    _solutionMode = DotnetSolutionCache.instance.solutionMode(widget.rootPath);
+    _detectSolutions();
   }
 
   @override
@@ -475,13 +524,28 @@ class _FileTreePanelState extends State<FileTreePanel> {
           widget.sourceControlViewMode == SourceControlViewMode.tree;
     }
     // Novo pedido de reveal (seleção de tab FileView): calcula os ancestrais do
-    // alvo e publica o set pros folders expandirem.
+    // alvo e publica o set pros folders expandirem. Não sai do modo Solution:
+    // abrir um item de lá também revela o arquivo, e a view lógica fica.
     if (widget.revealGen != oldWidget.revealGen &&
         widget.revealGen != _revealGen) {
       _revealGen = widget.revealGen;
       _revealExpand = _ancestorDirs(widget.revealPath);
-      _tab = _RightPaneTab.files;
+      _localTab = SidebarPanel.files;
       setState(() {});
+    }
+    if (oldWidget.rootPath != widget.rootPath) {
+      _solutionMode = DotnetSolutionCache.instance.solutionMode(
+        widget.rootPath,
+      );
+      _solutions = const [];
+      _solution = null;
+      _solutionFailed = false;
+      _activeSolution = null;
+      _cancelSolutionWatches();
+      _detectSolutions();
+    } else if (oldWidget.revision != widget.revision) {
+      _detectSolutions();
+      if (_solutionMode) _loadSolution(refresh: true);
     }
   }
 
@@ -490,7 +554,249 @@ class _FileTreePanelState extends State<FileTreePanel> {
     widget.searchFocusSignal?.removeListener(_onSearchFocusRequested);
     _treeFocus.dispose();
     _commitMessage.dispose();
+    _solutionReload?.cancel();
+    _cancelSolutionWatches();
     super.dispose();
+  }
+
+  Future<void> _detectSolutions() async {
+    final gen = ++_detectGen;
+    final root = widget.rootPath;
+    List<DotnetSolutionRef> found;
+    try {
+      found = await detectDotnetSolutions(root, widget.listChildren);
+    } on Object {
+      found = const [];
+    }
+    if (!mounted || gen != _detectGen || widget.rootPath != root) return;
+    final cache = DotnetSolutionCache.instance;
+    var active = cache.activeSolution(root);
+    if (active == null || !found.any((ref) => ref.path == active)) {
+      active = found.isEmpty ? null : found.first.path;
+      if (active != null) cache.setActiveSolution(root, active);
+    }
+    final previous = _activeSolution;
+    setState(() {
+      _solutions = found;
+      _activeSolution = active;
+      if (found.isEmpty) _solutionMode = false;
+    });
+    if (_solutionMode &&
+        active != null &&
+        (previous != active || _solution == null)) {
+      _loadSolution(refresh: false);
+    }
+  }
+
+  void _toggleSolutionMode() {
+    final next = !_solutionMode;
+    DotnetSolutionCache.instance.setSolutionMode(widget.rootPath, next);
+    setState(() {
+      _solutionMode = next;
+      _solutionFailed = false;
+    });
+    if (next) _loadSolution(refresh: false);
+  }
+
+  Future<void> _loadSolution({required bool refresh}) async {
+    final path = _activeSolution;
+    final root = widget.rootPath;
+    if (path == null) return;
+    final cache = DotnetSolutionCache.instance;
+    if (!refresh) {
+      final cached = cache.peek(path);
+      if (cached != null) {
+        if (!mounted) return;
+        setState(() {
+          _solution = cached;
+          _solutionLoading = false;
+          _solutionFailed = false;
+        });
+        _watchSolution(cached);
+        return;
+      }
+    }
+    final gen = ++_loadGen;
+    if (_solution == null && mounted) {
+      setState(() {
+        _solutionLoading = true;
+        _solutionFailed = false;
+      });
+    }
+    final loader = widget.loadDotnetSolution;
+    if (loader == null) {
+      if (!mounted || gen != _loadGen) return;
+      setState(() {
+        _solutionLoading = false;
+        _solutionFailed = _solution == null;
+      });
+      return;
+    }
+    try {
+      final snap = await loader(path);
+      if (!mounted || gen != _loadGen || widget.rootPath != root) return;
+      if (snap == null) {
+        setState(() {
+          _solutionLoading = false;
+          _solutionFailed = _solution == null;
+        });
+        return;
+      }
+      cache.putModel(path, snap.fingerprint, snap);
+      setState(() {
+        _solution = snap;
+        _solutionLoading = false;
+        _solutionFailed = false;
+      });
+      _watchSolution(snap);
+    } on Object {
+      if (!mounted || gen != _loadGen) return;
+      setState(() {
+        _solutionLoading = false;
+        _solutionFailed = _solution == null;
+      });
+    }
+  }
+
+  void _watchSolution(DotnetSolutionSnapshot snap) {
+    _cancelSolutionWatches();
+    final watch = widget.watchSolutionFile;
+    if (watch == null) return;
+    for (final path in <String>{snap.path, ...snap.projectPaths}) {
+      _solutionWatches.add(
+        watch(path).listen((_) {
+          _solutionReload?.cancel();
+          _solutionReload = Timer(const Duration(milliseconds: 200), () {
+            if (mounted && _solutionMode) _loadSolution(refresh: true);
+          });
+        }),
+      );
+    }
+  }
+
+  void _cancelSolutionWatches() {
+    for (final sub in _solutionWatches) {
+      sub.cancel();
+    }
+    _solutionWatches.clear();
+  }
+
+  Future<void> _showSolutionSwitcher() async {
+    final choice = await showAppMenu<String>(
+      context,
+      items: [
+        for (final ref in _solutions)
+          AppMenuItem(
+            value: ref.path,
+            label: ref.name,
+            selected: ref.path == _activeSolution,
+          ),
+      ],
+    );
+    if (!mounted || choice == null || choice == _activeSolution) return;
+    DotnetSolutionCache.instance.setActiveSolution(widget.rootPath, choice);
+    _cancelSolutionWatches();
+    setState(() {
+      _activeSolution = choice;
+      _solution = null;
+      _solutionFailed = false;
+    });
+    _loadSolution(refresh: false);
+  }
+
+  void _showSolutionNodeMenu(
+    BuildContext context,
+    Offset position,
+    String path,
+    String name,
+    bool isFolder,
+  ) {
+    final parent = _parentPath(path);
+    _showNodeMenu(
+      context,
+      position,
+      _Row(
+        depth: 0,
+        isFolder: isFolder,
+        name: name,
+        path: path,
+        rootPath: widget.rootPath,
+        gitStatus: widget.gitStatusOf(path),
+        onDoubleTap: isFolder ? null : () => widget.onOpenFile(path),
+        onOpenWith: () => widget.onOpenWith(path),
+        onOpenInWindow: widget.onOpenInWindow == null
+            ? null
+            : () => widget.onOpenInWindow!(path),
+        onOpenLayout:
+            widget.onOpenLayout == null || !name.toLowerCase().endsWith('.ckp')
+            ? null
+            : () => widget.onOpenLayout!(path),
+        onOpenAsSource:
+            widget.onOpenAsSource == null ||
+                !(FileReader.isBoard(name) ||
+                    name.toLowerCase().endsWith('.kanban') ||
+                    name.toLowerCase().endsWith('.panel') ||
+                    OrchestrationDocument.isFilePath(path))
+            ? null
+            : () => widget.onOpenAsSource!(path),
+        onShowDiff: isFolder ? null : () => widget.onOpenDiff(path),
+        onCreateInFolder: isFolder ? widget.onCreateInFolder : null,
+        agentLaunchers: isFolder ? widget.agentLaunchers : const [],
+        onNewFile: isFolder ? () => _startCreate(path, false) : null,
+        onNewFolder: isFolder ? () => _startCreate(path, true) : null,
+        onStartRename: () => _startRename(path),
+        onCommitRename: (next) => _commitRename(path, next),
+        onCancelRename: _cancelRename,
+        onDelete: () => _requestDelete(path),
+        onCopy: () => widget.onCopy(path),
+        onCut: () => widget.onCut(path),
+        onPaste: () => _requestPaste(isFolder ? path : parent),
+        canPaste: widget.canPaste,
+      ),
+    );
+  }
+
+  String _parentPath(String path) {
+    final slash = path.lastIndexOf('/');
+    if (slash <= 0) return widget.rootPath;
+    return path.substring(0, slash);
+  }
+
+  Widget _solutionBody() {
+    final tr = context.t.cockpit.fileTreePanel;
+    if (_solutionLoading && _solution == null) {
+      return Center(
+        child: Text(
+          tr.loadingSolution,
+          key: const ValueKey('solution-loading'),
+          style: context.typo.label.copyWith(color: context.colors.text3),
+        ),
+      );
+    }
+    if ((_solutionFailed || widget.loadDotnetSolution == null) &&
+        _solution == null) {
+      return Center(
+        child: Text(
+          tr.solutionLoadFailed,
+          key: const ValueKey('solution-load-error'),
+          textAlign: TextAlign.center,
+          style: context.typo.label.copyWith(color: context.colors.text3),
+        ),
+      );
+    }
+    final snap = _solution;
+    if (snap == null) return const SizedBox.shrink();
+    return DotnetSolutionTree(
+      snapshot: snap,
+      refreshToken: widget.revision + _localRefresh,
+      collapseGen: _collapseGen,
+      selectedPath: widget.selectedPath ?? _selectedPath,
+      listChildren: widget.listChildren,
+      onOpenFile: widget.onOpenFile,
+      onTapFile: widget.onTapFile,
+      onSelectFile: widget.onSelectFile,
+      onNodeMenu: _showSolutionNodeMenu,
+    );
   }
 
   /// Botão-direito num arquivo do Source Control: View Diff + Unstage OU
@@ -737,8 +1043,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
 
   /// Cmd+Shift+F: revela a aba de busca (o campo é focado pelo próprio painel).
   void _onSearchFocusRequested() {
-    if (widget.searchPanel != null && _tab != _RightPaneTab.search) {
-      setState(() => _tab = _RightPaneTab.search);
+    if (widget.searchPanel != null && _tab != SidebarPanel.search) {
+      _selectPanel(SidebarPanel.search);
     }
   }
 
@@ -959,6 +1265,9 @@ class _FileTreePanelState extends State<FileTreePanel> {
   }
 
   Future<void> _requestMove(String path, String targetDir) async {
+    // Um drop na pasta atual não move nada (inclusive quando a própria linha
+    // recusa o drop e o alvo da raiz o recebe).
+    if (p.dirname(path) == targetDir) return;
     final name = path.split('/').where((p) => p.isNotEmpty).last;
     final destName = targetDir.split('/').where((p) => p.isNotEmpty).lastOrNull;
     final tr = context.t.cockpit.fileTreePanel;
@@ -1114,6 +1423,9 @@ class _FileTreePanelState extends State<FileTreePanel> {
       revealExpand: _revealExpand,
       revealGen: _revealGen,
       collapseGen: _collapseGen,
+      fileNestingEnabled: widget.fileNestingEnabled,
+      fileNestingAutoExpand: widget.fileNestingAutoExpand,
+      fileNestingPatterns: widget.fileNestingPatterns,
       onSelect: _select,
       onOpenFile: widget.onOpenFile,
       onTapFile: widget.onTapFile,
@@ -1146,29 +1458,29 @@ class _FileTreePanelState extends State<FileTreePanel> {
     // Se a condição da aba ativa sumiu, cai de volta pra Files.
     final hasSearch = widget.searchPanel != null;
     var tab = _tab;
-    if (tab == _RightPaneTab.sourceControl && !widget.isGitRepo) {
-      tab = _RightPaneTab.files;
+    if (tab == SidebarPanel.sourceControl && !widget.isGitRepo) {
+      tab = SidebarPanel.files;
     }
-    if (tab == _RightPaneTab.search && !hasSearch) {
-      tab = _RightPaneTab.files;
+    if (tab == SidebarPanel.search && !hasSearch) {
+      tab = SidebarPanel.files;
     }
     final hasDatabase = widget.databasePanel != null;
-    if (tab == _RightPaneTab.database && !hasDatabase) {
-      tab = _RightPaneTab.files;
+    if (tab == SidebarPanel.database && !hasDatabase) {
+      tab = SidebarPanel.files;
     }
     final hasGallery = widget.galleryPanel != null;
-    if (tab == _RightPaneTab.gallery && !hasGallery) {
-      tab = _RightPaneTab.files;
+    if (tab == SidebarPanel.gallery && !hasGallery) {
+      tab = SidebarPanel.files;
     }
     final hasTelemetry = widget.telemetryPanel != null;
-    if (tab == _RightPaneTab.telemetry && !hasTelemetry) {
-      tab = _RightPaneTab.files;
+    if (tab == SidebarPanel.telemetry && !hasTelemetry) {
+      tab = SidebarPanel.files;
     }
-    final scMode = tab == _RightPaneTab.sourceControl;
-    final searchMode = tab == _RightPaneTab.search;
-    final dbMode = tab == _RightPaneTab.database;
-    final galleryMode = tab == _RightPaneTab.gallery;
-    final telemetryMode = tab == _RightPaneTab.telemetry;
+    final scMode = tab == SidebarPanel.sourceControl;
+    final searchMode = tab == SidebarPanel.search;
+    final dbMode = tab == SidebarPanel.database;
+    final galleryMode = tab == SidebarPanel.gallery;
+    final telemetryMode = tab == SidebarPanel.telemetry;
 
     return Container(
       width: widget.width,
@@ -1189,15 +1501,15 @@ class _FileTreePanelState extends State<FileTreePanel> {
                 _HeaderIcon(
                   icon: Icons.folder_outlined,
                   tooltip: context.t.cockpit.fileTreePanel.filesTooltip,
-                  selected: tab == _RightPaneTab.files,
-                  onTap: () => setState(() => _tab = _RightPaneTab.files),
+                  selected: tab == SidebarPanel.files,
+                  onTap: () => _selectPanel(SidebarPanel.files),
                 ),
                 if (hasSearch)
                   _HeaderIcon(
                     icon: Icons.search,
                     tooltip: context.t.cockpit.fileTreePanel.searchTooltip,
                     selected: searchMode,
-                    onTap: () => setState(() => _tab = _RightPaneTab.search),
+                    onTap: () => _selectPanel(SidebarPanel.search),
                   ),
                 if (widget.isGitRepo)
                   _HeaderIcon(
@@ -1206,8 +1518,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     tooltip:
                         context.t.cockpit.fileTreePanel.sourceControlTooltip,
                     selected: scMode,
-                    onTap: () =>
-                        setState(() => _tab = _RightPaneTab.sourceControl),
+                    onTap: () => _selectPanel(SidebarPanel.sourceControl),
                   ),
                 if (hasDatabase)
                   _HeaderIcon(
@@ -1215,7 +1526,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     icon: Icons.storage,
                     tooltip: context.t.cockpit.fileTreePanel.databaseTooltip,
                     selected: dbMode,
-                    onTap: () => setState(() => _tab = _RightPaneTab.database),
+                    onTap: () => _selectPanel(SidebarPanel.database),
                   ),
                 if (hasTelemetry)
                   _HeaderIcon(
@@ -1223,7 +1534,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     icon: Icons.monitor_heart_outlined,
                     tooltip: context.t.cockpit.telemetry.tooltip,
                     selected: telemetryMode,
-                    onTap: () => setState(() => _tab = _RightPaneTab.telemetry),
+                    onTap: () => _selectPanel(SidebarPanel.telemetry),
                   ),
                 if (hasGallery)
                   _HeaderIcon(
@@ -1231,20 +1542,40 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     icon: Icons.auto_awesome_mosaic_outlined,
                     tooltip: context.t.cockpit.fileTreePanel.galleryTooltip,
                     selected: galleryMode,
-                    onTap: () => setState(() => _tab = _RightPaneTab.gallery),
+                    onTap: () => _selectPanel(SidebarPanel.gallery),
                   ),
               ],
             ),
           ),
           // Título da aba ativa + ações contextuais ao lado, no padrão do
           // painel Database (a barra de tabs acima fica só com as tabs).
-          if (widget.rootPath.isNotEmpty && tab == _RightPaneTab.files)
+          if (widget.rootPath.isNotEmpty && tab == SidebarPanel.files)
             _PanelHeader(
               title: context.t.cockpit.fileTreePanel.sectionFiles,
               actions: [
+                if (_solutions.isNotEmpty)
+                  _PanelHeaderAction(
+                    key: const ValueKey('solution-mode-toggle'),
+                    mark: (color) => _SolutionMark(color: color),
+                    tooltip: _solutionMode
+                        ? context.t.cockpit.fileTreePanel.explorerTooltip
+                        : context.t.cockpit.fileTreePanel.solutionTooltip,
+                    selected: _solutionMode,
+                    onTap: _toggleSolutionMode,
+                  ),
+                if (_solutionMode && _solutions.length > 1)
+                  _PanelHeaderAction(
+                    key: const ValueKey('solution-switcher'),
+                    icon: Icons.swap_horiz,
+                    tooltip: context.t.cockpit.fileTreePanel.switchSolution,
+                    onTap: () {
+                      _showSolutionSwitcher();
+                    },
+                  ),
                 // "New file/folder": pasta/arquivo selecionado, senão a raiz
-                // do workspace.
-                if (_headerCreateTarget()?.isNotEmpty ?? false) ...[
+                // do workspace. No modo Solution a árvore é lógica.
+                if (!_solutionMode &&
+                    (_headerCreateTarget()?.isNotEmpty ?? false)) ...[
                   _PanelHeaderAction(
                     icon: Icons.note_add_outlined,
                     tooltip: context.t.cockpit.fileTreePanel.newFile,
@@ -1264,7 +1595,11 @@ class _FileTreePanelState extends State<FileTreePanel> {
                 _PanelHeaderAction(
                   icon: Icons.refresh,
                   tooltip: context.t.cockpit.fileTreePanel.refreshTooltip,
-                  onTap: () => setState(() => _localRefresh++),
+                  onTap: () {
+                    setState(() => _localRefresh++);
+                    _detectSolutions();
+                    if (_solutionMode) _loadSolution(refresh: true);
+                  },
                 ),
               ],
             ),
@@ -1340,13 +1675,14 @@ class _FileTreePanelState extends State<FileTreePanel> {
                           onStageAll: _toggleStageAll,
                           onDiscard: _discardOne,
                           onDiscardAll: _discardAll,
-                          isFolderExpanded: (path) =>
-                              _sourceControlFolderExpanded[path] ?? true,
-                          onFolderExpansionChanged: (path, expanded) =>
-                              setState(
-                                () => _sourceControlFolderExpanded[path] =
-                                    expanded,
-                              ),
+                          isFolderExpanded: (path, staged) =>
+                              _sourceControlFolderExpanded[(staged, path)] ??
+                              true,
+                          onFolderExpansionChanged: (path, staged, expanded) =>
+                              setState(() {
+                                _sourceControlFolderExpanded[(staged, path)] =
+                                    expanded;
+                              }),
                           stagedPaths: effectiveStaged,
                           unstagedPaths: effectiveUnstaged,
                           gitStatusOf: widget.gitStatusOf,
@@ -1375,6 +1711,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
                             }
                           },
                         )
+                : _solutionMode && _solutions.isNotEmpty
+                ? _solutionBody()
                 : DropTarget(
                     // Drop NATIVO do SO (Finder/Explorer/GTK): a pasta sob o
                     // cursor recebe; o espaço vazio manda pra raiz.
@@ -1763,6 +2101,9 @@ class _TreeEdit {
     required this.revealExpand,
     required this.revealGen,
     required this.collapseGen,
+    required this.fileNestingEnabled,
+    required this.fileNestingAutoExpand,
+    required this.fileNestingPatterns,
     required this.onSelect,
     required this.onOpenFile,
     required this.onTapFile,
@@ -1803,6 +2144,9 @@ class _TreeEdit {
 
   /// Geração do "Collapse all": [_Folder] fecha quando ela avança.
   final int collapseGen;
+  final bool fileNestingEnabled;
+  final bool fileNestingAutoExpand;
+  final Map<String, String> fileNestingPatterns;
 
   final void Function(String path, bool isFolder) onSelect;
   final ValueChanged<String> onOpenFile;
@@ -1873,6 +2217,9 @@ class _DirView extends StatefulWidget {
 
 class _DirViewState extends State<_DirView> {
   List<FileNode>? _children;
+  Map<String, List<FileNode>> _groups = const <String, List<FileNode>>{};
+  Map<String, Set<String>> _descendantPaths = const <String, Set<String>>{};
+  Set<String> _hidden = const <String>{};
 
   @override
   void initState() {
@@ -1884,11 +2231,129 @@ class _DirViewState extends State<_DirView> {
   void didUpdateWidget(_DirView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshToken != widget.refreshToken) _load();
+    if (oldWidget.edit.fileNestingEnabled != widget.edit.fileNestingEnabled ||
+        !identical(
+          oldWidget.edit.fileNestingPatterns,
+          widget.edit.fileNestingPatterns,
+        )) {
+      final children = _children;
+      if (children != null) _updateNesting(children);
+    }
   }
 
   Future<void> _load() async {
     final children = await widget.edit.listChildren(widget.path);
-    if (mounted) setState(() => _children = children);
+    if (!mounted) return;
+    setState(() {
+      _children = children;
+      _updateNesting(children);
+    });
+  }
+
+  void _updateNesting(List<FileNode> children) {
+    if (!widget.edit.fileNestingEnabled) {
+      _groups = const <String, List<FileNode>>{};
+      _descendantPaths = const <String, Set<String>>{};
+      _hidden = const <String>{};
+      return;
+    }
+    final groups = nestFiles(children, widget.edit.fileNestingPatterns);
+    final descendants = <String, Set<String>>{};
+    Set<String> collect(String path) => descendants.putIfAbsent(path, () {
+      final paths = <String>{};
+      for (final child in groups[path] ?? const <FileNode>[]) {
+        paths.add(child.path);
+        paths.addAll(collect(child.path));
+      }
+      return paths;
+    });
+    for (final path in groups.keys) {
+      collect(path);
+    }
+    _groups = groups;
+    _descendantPaths = descendants;
+    _hidden = {
+      for (final group in groups.values)
+        for (final file in group) file.path,
+    };
+  }
+
+  Widget _nestedFile(
+    FileNode node,
+    Map<String, List<FileNode>> groups,
+    int depth,
+  ) {
+    final nested = groups[node.path] ?? const <FileNode>[];
+    if (nested.isEmpty) return _fileRow(node, depth);
+    return _NestedFile(
+      key: ValueKey(node.path),
+      depth: depth,
+      autoExpand: widget.edit.fileNestingAutoExpand,
+      collapseGen: widget.edit.collapseGen,
+      revealPath: widget.edit.revealPath,
+      revealGen: widget.edit.revealGen,
+      descendantPaths: _descendantPaths[node.path] ?? const <String>{},
+      row: _fileRow(node, depth),
+      children: [
+        for (final child in nested) _nestedFile(child, groups, depth + 1),
+      ],
+    );
+  }
+
+  Widget _fileRow(FileNode node, int depth) {
+    final edit = widget.edit;
+    // Arrasta o arquivo até o input (vira `@<rel>`).
+    return _NodeDraggable(
+      path: node.path,
+      name: node.name,
+      child: _RevealTarget(
+        active: node.path == edit.revealPath,
+        generation: edit.revealGen,
+        child: _Row(
+          depth: depth,
+          isFolder: false,
+          name: node.name,
+          path: node.path,
+          rootPath: widget.rootPath,
+          selected: node.path == edit.selectedPath,
+          renaming: edit.renaming == node.path,
+          gitStatus: edit.gitStatusOf(node.path),
+          onTap: () {
+            edit.onSelect(node.path, false);
+            edit.onSelectFile?.call(node.path);
+            edit.onTapFile?.call(node.path);
+          },
+          onDoubleTap: () => edit.onOpenFile(node.path),
+          onOpenWith: () => edit.onOpenWith(node.path),
+          onOpenInWindow: edit.onOpenInWindow == null
+              ? null
+              : () => edit.onOpenInWindow!(node.path),
+          onOpenLayout:
+              edit.onOpenLayout == null ||
+                  !node.name.toLowerCase().endsWith('.ckp')
+              ? null
+              : () => edit.onOpenLayout!(node.path),
+          onOpenAsSource:
+              edit.onOpenAsSource == null ||
+                  !(FileReader.isBoard(node.name) ||
+                      node.name.toLowerCase().endsWith('.kanban') ||
+                      node.name.toLowerCase().endsWith('.panel') ||
+                      OrchestrationDocument.isFilePath(node.path))
+              ? null
+              : () => edit.onOpenAsSource!(node.path),
+          onStartRename: () => edit.onStartRename(node.path),
+          onCommitRename: (name) => edit.onCommitRename(node.path, name),
+          onCancelRename: edit.onCancelRename,
+          onDelete: () => edit.onRequestDelete(node.path),
+          onShowDiff: () => edit.onShowDiff(node.path),
+          onCopy: () => edit.onCopy(node.path),
+          onCut: () => edit.onCut(node.path),
+          // Arquivo cola na pasta-mãe.
+          onPaste: () => edit.onRequestPaste(widget.path),
+          canPaste: edit.canPaste,
+        ),
+      ),
+    );
   }
 
   @override
@@ -1946,58 +2411,87 @@ class _DirViewState extends State<_DirView> {
                 edit: edit,
               ),
             )
-          else
-            // Arrasta o arquivo até o input (vira `@<rel>`).
-            _NodeDraggable(
-              path: node.path,
-              name: node.name,
-              child: _RevealTarget(
-                active: node.path == edit.revealPath,
-                generation: edit.revealGen,
-                child: _Row(
-                  depth: widget.depth,
-                  isFolder: false,
-                  name: node.name,
-                  path: node.path,
-                  rootPath: widget.rootPath,
-                  selected: node.path == edit.selectedPath,
-                  renaming: edit.renaming == node.path,
-                  gitStatus: edit.gitStatusOf(node.path),
-                  onTap: () {
-                    edit.onSelect(node.path, false);
-                    edit.onSelectFile?.call(node.path);
-                    edit.onTapFile?.call(node.path);
-                  },
-                  onDoubleTap: () => edit.onOpenFile(node.path),
-                  onOpenWith: () => edit.onOpenWith(node.path),
-                  onOpenInWindow: edit.onOpenInWindow == null
-                      ? null
-                      : () => edit.onOpenInWindow!(node.path),
-                  onOpenLayout:
-                      edit.onOpenLayout == null ||
-                          !node.name.toLowerCase().endsWith('.ckp')
-                      ? null
-                      : () => edit.onOpenLayout!(node.path),
-                  onOpenAsSource:
-                      edit.onOpenAsSource == null ||
-                          !(node.name.toLowerCase().endsWith('.kanban') ||
-                              node.name.toLowerCase().endsWith('.panel'))
-                      ? null
-                      : () => edit.onOpenAsSource!(node.path),
-                  onStartRename: () => edit.onStartRename(node.path),
-                  onCommitRename: (name) =>
-                      edit.onCommitRename(node.path, name),
-                  onCancelRename: edit.onCancelRename,
-                  onDelete: () => edit.onRequestDelete(node.path),
-                  onShowDiff: () => edit.onShowDiff(node.path),
-                  onCopy: () => edit.onCopy(node.path),
-                  onCut: () => edit.onCut(node.path),
-                  // Arquivo cola na pasta-mãe.
-                  onPaste: () => edit.onRequestPaste(widget.path),
-                  canPaste: edit.canPaste,
+          else if (!_hidden.contains(node.path))
+            _nestedFile(node, _groups, widget.depth),
+      ],
+    );
+  }
+}
+
+class _NestedFile extends StatefulWidget {
+  const _NestedFile({
+    super.key,
+    required this.depth,
+    required this.autoExpand,
+    required this.collapseGen,
+    required this.revealPath,
+    required this.revealGen,
+    required this.descendantPaths,
+    required this.row,
+    required this.children,
+  });
+
+  final int depth;
+  final bool autoExpand;
+  final int collapseGen;
+  final String? revealPath;
+  final int revealGen;
+  final Set<String> descendantPaths;
+  final Widget row;
+  final List<Widget> children;
+
+  @override
+  State<_NestedFile> createState() => _NestedFileState();
+}
+
+class _NestedFileState extends State<_NestedFile> {
+  late bool _expanded = widget.autoExpand;
+  int _collapseGen = -1;
+  int _revealGen = -1;
+
+  @override
+  void didUpdateWidget(_NestedFile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.autoExpand != widget.autoExpand) {
+      _expanded = widget.autoExpand;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_collapseGen != widget.collapseGen) {
+      if (_collapseGen >= 0) _expanded = false;
+      _collapseGen = widget.collapseGen;
+    }
+    if (_revealGen != widget.revealGen) {
+      _revealGen = widget.revealGen;
+      if (widget.revealPath != null &&
+          widget.descendantPaths.contains(widget.revealPath)) {
+        _expanded = true;
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Stack(
+          children: [
+            widget.row,
+            Positioned(
+              left: 6 + widget.depth * 14,
+              top: 0,
+              bottom: 0,
+              child: HoverTap(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Icon(
+                  _expanded ? Icons.keyboard_arrow_down : Icons.chevron_right,
+                  size: 15,
+                  color: context.colors.text4,
                 ),
               ),
             ),
+          ],
+        ),
+        if (_expanded) ...widget.children,
       ],
     );
   }
@@ -2223,14 +2717,6 @@ _Row _folderMenuSpec(
   canPaste: edit.canPaste,
 );
 
-String _fileExplorerLabel(BuildContext context) {
-  if (Platform.isMacOS) return context.t.cockpit.fileTreePanel.openInFinder;
-  if (Platform.isWindows) {
-    return context.t.cockpit.fileTreePanel.openInExplorer;
-  }
-  return context.t.cockpit.fileTreePanel.openInFileManager;
-}
-
 /// Menu de contexto de um nó da árvore. [spec] é um [_Row] usado só como
 /// descrição (rótulos + callbacks): as linhas passam o próprio `widget`; a
 /// área vazia da árvore e o slot de pasta vazia passam um spec de pasta
@@ -2258,12 +2744,13 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
             label: tr.openInNewWindow,
             icon: Icons.open_in_browser,
           ),
-        // Só `.kanban` (markdown cru) e `.panel` (HTML cru): escapa do
-        // renderizador próprio e edita a fonte.
+        // Open the source without replacing a specialized app or its terminals.
         if (widget.onOpenAsSource != null)
           AppMenuItem(
             value: 'as-source',
-            label: widget.name.toLowerCase().endsWith('.panel')
+            label: OrchestrationDocument.isFilePath(widget.path)
+                ? context.t.cockpit.paneView.openAsJson
+                : widget.name.toLowerCase().endsWith('.panel')
                 ? tr.openAsHtml
                 : tr.openAsMarkdown,
             icon: Icons.notes_outlined,
@@ -2326,7 +2813,7 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
       if (isFolder)
         AppMenuItem(
           value: 'reveal',
-          label: _fileExplorerLabel(context),
+          label: fileManagerLabel(context),
           icon: Icons.folder_open_outlined,
         ),
       // Sem callback (raiz do workspace via área vazia) o item não aparece:
@@ -2405,9 +2892,15 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
       case 'paste':
         widget.onPaste?.call();
       case 'rel':
-        Clipboard.setData(ClipboardData(text: _relativeOf(widget)));
+        TextClipboardService.instance.write(
+          _relativeOf(widget),
+          operation: 'file_tree_panel',
+        );
       case 'abs':
-        Clipboard.setData(ClipboardData(text: widget.path));
+        TextClipboardService.instance.write(
+          widget.path,
+          operation: 'file_tree_panel',
+        );
     }
   });
 }
@@ -2793,8 +3286,9 @@ class _ChangedTree extends StatelessWidget {
   final Future<void> Function(List<String> paths, bool staged) onStageAll;
   final Future<void> Function(String absPath) onDiscard;
   final Future<void> Function(List<String> paths) onDiscardAll;
-  final bool Function(String path) isFolderExpanded;
-  final void Function(String path, bool expanded) onFolderExpansionChanged;
+  final bool Function(String path, bool staged) isFolderExpanded;
+  final void Function(String path, bool staged, bool expanded)
+  onFolderExpansionChanged;
   final List<String> stagedPaths;
   final List<String> unstagedPaths;
   final GitFileStatus? Function(String absolutePath) gitStatusOf;
@@ -2994,8 +3488,9 @@ class _ChangedTree extends StatelessWidget {
       onStageAll: (paths) => onStageAll(paths, staged),
       onDiscard: onDiscard,
       onDiscardAll: onDiscardAll,
-      isExpanded: isFolderExpanded,
-      onExpansionChanged: onFolderExpansionChanged,
+      isExpanded: (path) => isFolderExpanded(path, staged),
+      onExpansionChanged: (path, expanded) =>
+          onFolderExpansionChanged(path, staged, expanded),
       staged: staged,
     );
   }
@@ -3595,30 +4090,48 @@ class _PanelHeader extends StatelessWidget {
 class _PanelHeaderAction extends StatelessWidget {
   const _PanelHeaderAction({
     super.key,
-    required this.icon,
+    this.icon,
     required this.tooltip,
     required this.onTap,
     this.selected = false,
-  });
-  final IconData icon;
+    this.mark,
+  }) : assert(icon != null || mark != null);
+  final IconData? icon;
   final String tooltip;
   final VoidCallback onTap;
   final bool selected;
 
+  /// Desenho no lugar do [icon], na mesma cor de ativo/inativo.
+  final Widget Function(Color color)? mark;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final color = selected ? colors.text : colors.text3;
     return AppTooltip(
       message: tooltip,
       child: HoverTap(
         onTap: onTap,
         padding: const EdgeInsets.all(3),
-        child: Icon(
-          icon,
-          size: 14,
-          color: selected ? colors.text : colors.text3,
-        ),
+        child: mark?.call(color) ?? Icon(icon!, size: 14, color: color),
       ),
+    );
+  }
+}
+
+/// Logo do Visual Studio, na cor do header. O SVG original é roxo.
+class _SolutionMark extends StatelessWidget {
+  const _SolutionMark({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SvgPicture.asset(
+      'assets/file_icons/visualstudio.svg',
+      width: 14,
+      height: 14,
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
     );
   }
 }
@@ -3664,7 +4177,7 @@ class _HeaderIcon extends StatelessWidget {
 
 /// Chip que segue o cursor ao arrastar um arquivo do painel pro input.
 /// Torna um nó da árvore arrastável (mover pra outra pasta / citar no
-/// composer). No DESKTOP o arraste é imediato; no MOBILE só após long-press,
+/// composer). No DESKTOP o mouse precisa se deslocar; no MOBILE só após long-press,
 /// pra um swipe de scroll por toque não virar drag-drop (plano 60, Wave B1).
 class _NodeDraggable extends StatelessWidget {
   const _NodeDraggable({
@@ -3687,12 +4200,68 @@ class _NodeDraggable extends StatelessWidget {
         child: child,
       );
     }
-    return Draggable<String>(
+    return _MouseThresholdDraggable(
       data: path,
       dragAnchorStrategy: pointerDragAnchorStrategy,
       feedback: _FileChip(name: name),
       child: child,
     );
+  }
+}
+
+/// O limiar padrão do Flutter para mouse é só 1 pixel lógico. Uma pequena
+/// tremida ao clicar não deve ganhar a arena do tap e virar uma movimentação.
+/// Mantém o Draggable (feedback, alvos e payload) e os demais dispositivos;
+/// não exige espera por tempo nem acumula distância de movimentos de ida/volta.
+class _MouseThresholdDraggable extends Draggable<String> {
+  const _MouseThresholdDraggable({
+    required super.data,
+    required super.dragAnchorStrategy,
+    required super.feedback,
+    required super.child,
+  });
+
+  @override
+  ImmediateMultiDragGestureRecognizer createRecognizer(
+    GestureMultiDragStartCallback onStart,
+  ) => _MouseThresholdDragRecognizer()..onStart = onStart;
+}
+
+class _MouseThresholdDragRecognizer
+    extends ImmediateMultiDragGestureRecognizer {
+  @override
+  MultiDragPointerState createNewPointerState(PointerDownEvent event) {
+    if (event.kind != PointerDeviceKind.mouse) {
+      return super.createNewPointerState(event);
+    }
+    return _MouseThresholdPointerState(
+      event.position,
+      event.kind,
+      gestureSettings,
+    );
+  }
+}
+
+class _MouseThresholdPointerState extends MultiDragPointerState {
+  _MouseThresholdPointerState(
+    super.initialPosition,
+    super.kind,
+    super.gestureSettings,
+  );
+
+  // Pixels lógicos: tolera jitter sem atrasar arrastes deliberados.
+  static const double _dragThreshold = 8;
+
+  @override
+  void checkForResolutionAfterMove() {
+    if (pendingDelta!.distance > _dragThreshold) {
+      resolve(GestureDisposition.accepted);
+    }
+  }
+
+  @override
+  void accepted(GestureMultiDragStartCallback starter) {
+    starter(initialPosition);
   }
 }
 

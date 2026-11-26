@@ -24,6 +24,10 @@ import 'package:flutter/foundation.dart';
 /// Tratar os dois como iguais foi o bug original: o Windows ficava preso em
 /// `downloading` pra sempre e o clique no card era no-op.
 ///
+/// Depois do download, o WinSparkle lança o instalador e emite
+/// `before-quit-for-update`: a partir daí quem precisa encerrar o app é o host
+/// ([quitForUpdate]), senão o instalador não consegue trocar os arquivos.
+///
 /// Limite conhecido (risco do plano): o passo final de install mostra UI nativa
 /// (`SPUStandardUserDriver` no macOS; o diálogo do WinSparkle no Windows) — não
 /// dá pra suprimir 100% pela fachada.
@@ -32,7 +36,17 @@ class AutoUpdaterSelfUpdater with UpdaterListener implements SelfUpdater {
     required this.feedUrl,
     required this.autoDownloads,
     this.checkInterval = const Duration(hours: 24),
+    this.quitForUpdate,
   });
+
+  /// Encerra o app quando o motor pede (`before-quit-for-update`). Só é chamado
+  /// quando o motor **não** encerra o app por conta própria ([autoDownloads]
+  /// `false` = WinSparkle): o WinSparkle lança o instalador e só *pede* pro host
+  /// sair (`win_sparkle_set_shutdown_request_callback`). Sem sair, o instalador
+  /// silencioso encontra `cockpit.exe`, o sidecar e os `OpenConsole.exe` vivos
+  /// na pasta de instalação e aborta sem avisar (#330). O módulo passa o
+  /// fechamento limpo da janela, o mesmo do X da barra de título.
+  final Future<void> Function()? quitForUpdate;
 
   /// Appcast da plataforma (`appcast-macos.xml` / `appcast-windows.xml`).
   final String feedUrl;
@@ -132,13 +146,19 @@ class AutoUpdaterSelfUpdater with UpdaterListener implements SelfUpdater {
 
   @override
   void onUpdaterBeforeQuitForUpdate(AppcastItem? item) {
-    // Reinício silencioso (decisão C): a fachada NÃO aguarda este callback —
-    // não dá pra bloquear o quit nem matar agentes graciosamente aqui. Os
-    // agentes `pi` filhos viram órfãos e são reapeados no próximo boot por
-    // `PiProcessRegistry.cleanOrphans` (SIGKILL dos PIDs do registry); o
-    // workspace (panes/abas) reabre pelo estado no Hive.
-    debugPrint(
-      '[self-update] before quit for update — agents reaped on next boot',
+    // macOS: o Sparkle encerra e relança o app sozinho — nada a fazer aqui.
+    // Windows: o instalador já foi lançado e espera o app sair. O workspace
+    // (panes/abas) reabre pelo estado persistido no próximo boot.
+    if (autoDownloads) {
+      debugPrint('[self-update] before quit for update');
+      return;
+    }
+    final quit = quitForUpdate;
+    if (quit == null) return;
+    unawaited(
+      quit().catchError((Object e) {
+        debugPrint('[self-update] quit for update failed: $e');
+      }),
     );
   }
 

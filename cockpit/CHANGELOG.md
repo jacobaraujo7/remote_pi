@@ -24,6 +24,162 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.28] - 2026-11-23
+
+Same content as 2.1.27, which never shipped: its Windows build failed in CI.
+
+### Added
+- Markdown preview renders Mermaid diagrams (#347).
+- Explorer shows .NET solutions (.sln) with their projects (#355).
+- Tasks accept per-task environment variables in tasks.json (#346).
+- HTTP files: better request editing, copy as cURL and a scrollable Result pane (#337).
+- Canvas Board objects can be edited from the context menu (#353).
+
+### Fixed
+- Sidebar panel and Search state are kept per workspace and worktree; Search watchers pause while hidden (#340).
+- Ctrl+T opens a new terminal tab on Windows and Linux (#292).
+- Task runs are isolated per workspace and project (#349).
+- Explorer no longer starts accidental drags on click (#339).
+- Folder expansion is tracked per Git section (staged, unstaged, untracked) (#338).
+- Windows release build pinned to the VS 2022 runner image: the VS 2026 image requires Clang 22, newer than the one shipped with Zig 0.16.
+
+## [2.1.27] - 2026-11-23
+
+### Added
+- Markdown preview renders Mermaid diagrams (#347).
+- Explorer shows .NET solutions (.sln) with their projects (#355).
+- Tasks accept per-task environment variables in tasks.json (#346).
+- HTTP files: better request editing, copy as cURL and a scrollable Result pane (#337).
+- Canvas Board objects can be edited from the context menu (#353).
+
+### Fixed
+- Sidebar panel and Search state are kept per workspace and worktree; Search watchers pause while hidden (#340).
+- Ctrl+T opens a new terminal tab on Windows and Linux (#292).
+- Task runs are isolated per workspace and project (#349).
+- Explorer no longer starts accidental drags on click (#339).
+- Folder expansion is tracked per Git section (staged, unstaged, untracked) (#338).
+
+## [2.1.26] - 2026-11-16
+
+### Added
+- Canvas Board in the Gallery: editable `.canvas` diagrams (lanes, processes, decisions, notes, arrows) drawn natively, with the `cockpit-canvas`, `cockpit-drawing-attachments` and `cockpit-export` skills for agents (#334).
+- Git diff view modes: side by side, inline and modified content (#273).
+- Configurable file nesting in the Explorer (Settings, Explorer tab) (#294).
+- Flutter tasks pick a device per task and expose DevTools from the Tasks panel (#281).
+- Task console: copy, clear, import `tasks.json` from the workspace and a per-line context menu (#192).
+- Branch switching from the workspace context menu (#324).
+- Reveal a tab's file or working directory in Finder, Explorer or the file manager from the tab menu (#300).
+
+### Fixed
+- Windows self-update now installs: Cockpit quits when WinSparkle asks, and the installer force-closes leftovers and relaunches the app (#331).
+- Markdown, HTML, SVG, panel, kanban and layout files open in their preview first, with an explicit "Edit with Neovim" action (#267).
+- Clipboard copies and cuts no longer lose their outcome when the system clipboard is busy; failures are reported in the UI (#318).
+- Batch discard no longer races on `index.lock` (#293).
+- Scrollback pruning is safe again (#316).
+- The Ghostty view is arbitrated between tabs, fixing stale rendering when switching (#309).
+
+### Changed
+- Regression tests for historical process, CLI and pane failures (#319).
+
+## [2.1.25] - 2026-11-11
+
+### Fixed
+- Opening a new terminal tab with Ctrl+T on Windows and Linux now works when the terminal has focus; Ctrl+T is intercepted by Cockpit and no longer reaches the shell for readline transpose (#291, #292).
+- The notification chime no longer keeps the audio output open after it finishes. On macOS this left a CoreAudio IO thread running and `coreaudiod` busy while Cockpit was idle; the chime player and the Settings sound preview now stop as soon as the sound completes (#314, #315).
+
+### Changed
+- Shell commands run by `.panel` pages and `cockpit exec` now record correlated spawn, first-output and completion metrics with an operation id and an invocation sequence. The slow-spawn warning names the operation; commands, arguments, cwd and environment stay out of the diagnostics (#317).
+
+## [2.1.24] - 2026-11-09
+
+### Changed
+- Agent Orchestration (`.orc`) redesigned: no toolbar; the footer shows the file path, the selected terminal, the graph legend, reload and the List | Graph switch. The terminal appears only while a definition is selected, centered with a maximum width on wide screens, and hides with Esc, its close button or a click on the background. Internal tabs are gone: the list and the graph are the navigation
+- `.orc` configuration opens as a centered dialog with the portable fields only (name, function, tool, model, directory, connections); session actions (start shell or CLI, compact, handoff, copy function, close) moved to the terminal header menu. "Box" is now called "Terminal"
+- Fonts used by the app are bundled; the app no longer downloads them at startup, so offline machines render the intended typefaces (#61)
+- Linux RPM package is named `remote-pi-cockpit`, matching the deb (#198)
+
+### Added
+- HTTP Client: expanded request editor and workflow (#304)
+- Cut the whole line with Cmd/Ctrl+X when nothing is selected (#285)
+
+### Fixed
+- Pasting attachments into a terminal: the confirmation notice now disappears after a few seconds instead of staying forever
+- Pasting a URL into a terminal is no longer treated as a file path (macOS pasteboard returned the URL as a path, which failed to import)
+- Files open in the workspace that contains them (#307)
+- The native image paste notice is hidden (#275)
+- Pane tools (browser, split, close) no longer sit against the "+" button on macOS and Linux
+
+## [2.1.23] - 2026-10-31
+
+### Added
+- Clone a Git repository from the workspace "+" menu: paste an SSH or HTTPS URL (prefilled from the clipboard), pick the destination folder and name, watch the clone in the git dialog and register the folder as a workspace on success (#277)
+- Credential prompts never hang the clone: the GUI runs git without terminal prompts and, unless you configured your own SSH command, with non-interactive SSH that accepts a new host key on first contact; known failures show a hint (git or Xcode tools missing, ssh missing, host key, authentication)
+- Git for Windows is found in Program Files and in the per-user install even when it is not on PATH
+
+## [2.1.22] - 2026-10-28
+
+### Added
+- Agent Orchestration app in the Gallery: an `.orc` document with Boxes and Graph views over its own terminal multiplexer, portable between worktrees, with a shared inspector, planned connections, observed traffic and temporary subagents (#272)
+- Paste and drop attachments into terminals: files, folders and clipboard images are handed to Claude, Codex, Pi and Copilot, with Windows clipboard support and WSL path conversion (#268)
+- `cockpit hook statusline` reports Claude Code context usage to the app when no custom status line is configured
+
+### Changed
+- anaki database drivers updated (sqlite 0.1.7, postgres 0.1.10, mysql 0.1.11, mssql 0.1.8, redis 0.1.6, mongodb 0.1.9) in the app and in cockpit-server
+- Telemetry writes SQLite rows in batches
+
+### Fixed
+- macOS Intel builds no longer fail when bundling native assets (dylib header padding)
+- Moving a terminal between docks keeps its native view mounted instead of freezing the window
+- Neovim settings check no longer notifies after the settings page is closed
+
+## [2.1.21] - 2026-10-26
+
+### Added
+- File > New File (Cmd+N / Ctrl+N) opens an untitled text buffer, like VS Code.
+  The first save asks for a name and creates the file in the workspace root;
+  the editor then follows the chosen extension (highlighting and LSP).
+
+### Fixed
+- Kanban boards with more columns than the window width can now be scrolled
+  horizontally: the board shows a horizontal scrollbar and the mouse wheel
+  moves it sideways once the column under the cursor has nothing left to scroll.
+- Windows: document windows (markdown, panel, kanban) no longer share plugin
+  registrations with the main window.
+- App telemetry now keeps the exception text in warnings, so spawn failures
+  arrive with their cause and errno.
+
+## [2.1.20] - 2026-10-25
+
+### Changed
+- Terminal engine (flterm/libghostty) updated: compression scheduling no longer
+  busy-spins, IME geometry is pushed to the system only while a composition is
+  active (lower CPU while typing), and Ctrl+Tab / Ctrl+Shift+Tab are no longer
+  sent to the shell, leaving them free for app shortcuts.
+
+## [2.1.19] - 2026-10-25
+
+### Added
+- New Cockpit brand: a pi built from three split panes, with the Remote Pi
+  blue dot as the status indicator. New app icon on macOS, Windows, Linux,
+  iOS and Android, plus the in-app logo. Sources live in
+  `assets/branding/` (SVG, PNG and a README with the grid and colors).
+- Soft wrap in the file editor (View > Toggle Word Wrap, Alt+Z / Option+Z).
+  On by default for Markdown and plain text; code files keep the current
+  layout. A Settings > General > Word wrap selector picks between
+  "Markdown and text", "All files" and "Off".
+- Simplified Chinese (zh) locale, available in Settings > Language.
+  Maintained on a best-effort basis: strings that are not translated yet
+  fall back to English.
+
+### Fixed
+- macOS app icon now ships in Apple's icon grid shape, so Cockpit no
+  longer shows in the Dock as a larger full-bleed square.
+- Windows: the app could look frozen while agents kept running. Closed
+  popovers left an invisible modal barrier mounted when animation ticks
+  stopped (minimized or offstage window), swallowing clicks on project
+  and terminal tabs. The barrier is now removed on a deadline independent
+  of animation frames.
+
 ## [2.1.18] - 2026-10-19
 
 **Hover finally works inside web views, plus find-in-terminal.** Previews,

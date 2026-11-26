@@ -1,9 +1,15 @@
+import 'dart:io';
+
 import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
+import 'package:cockpit/app/cockpit/domain/validators/clone_destination.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/branch_switch_dialog.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/clone_repository_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/git_process_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/widgets.dart';
 import 'package:cockpit/app/core/utils/native_folder_picker.dart';
+import 'package:cockpit/app/core/utils/user_home.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -44,12 +50,23 @@ Future<bool> createWorkspace(BuildContext context) async {
     initialDirectory: vm.selectedProject?.path,
   );
   if (path == null || !context.mounted) return false;
-  final suggestedName = path.split('/').where((p) => p.isNotEmpty).lastOrNull;
+  return _registerWorkspace(context, vm, path);
+}
+
+/// Dialog de configurações (nome = basename da pasta + cor sugerida, ambos
+/// editáveis) e registra [path] como workspace. Compartilhado por "Criar
+/// Workspace" e "Clonar repositório".
+Future<bool> _registerWorkspace(
+  BuildContext context,
+  CockpitViewModel vm,
+  String path,
+) async {
+  final suggestedName = folderDisplayName(path);
   final suggestedColor =
       kWorkspacePalette[vm.rootProjects.length % kWorkspacePalette.length];
   final result = await showWorkspaceSettingsDialog(
     context,
-    name: suggestedName ?? path,
+    name: suggestedName,
     colorValue: suggestedColor,
     path: path,
   );
@@ -61,6 +78,49 @@ Future<bool> createWorkspace(BuildContext context) async {
     imagePath: result.imagePath,
   );
   return true;
+}
+
+/// "Clonar repositório" (menu do "+"): URL + destino → `git clone` ao vivo no
+/// dialog de processo → se deu certo, segue o fluxo de "Criar Workspace"
+/// (nome + cor) na pasta clonada. Clone que falha não registra nada.
+Future<bool> cloneWorkspace(BuildContext context) async {
+  final vm = _vm(context);
+  final request = await showCloneRepositoryDialog(
+    context,
+    initialParent: cloneInitialParent(
+      selectedProjectPath: vm.selectedProject?.path,
+      home: userHome(),
+      fallback: Directory.current.path,
+    ),
+  );
+  if (request == null || !context.mounted) return false;
+  final tr = context.t.cockpit.cloneRepoDialog;
+  final process = vm.gitClone(request.url, request.targetPath);
+  final lines = <String>[];
+  final ok = process.exitCode.then((c) => c == 0);
+  await showGitProcessDialog(
+    context,
+    title: tr.progressTitle(name: folderDisplayName(request.targetPath)),
+    output: process.output.map((l) {
+      lines.add(l);
+      return l;
+    }),
+    success: ok,
+    // Falha conhecida (sem git, sem ssh, sem credencial…) ganha uma linha
+    // dizendo o que fazer; o resto fica com o erro do git, que já basta.
+    finalMessage: (succeeded) => succeeded
+        ? ''
+        : switch (classifyCloneFailure(lines)) {
+            CloneFailure.gitMissing => tr.hintGitMissing,
+            CloneFailure.xcodeToolsMissing => tr.hintXcodeTools,
+            CloneFailure.sshMissing => tr.hintSshMissing,
+            CloneFailure.hostKey => tr.hintHostKey,
+            CloneFailure.auth => tr.hintAuth,
+            null => '',
+          },
+  );
+  if (!await ok || !context.mounted) return false;
+  return _registerWorkspace(context, vm, request.targetPath);
 }
 
 /// "Configurações" do workspace: editar nome + cor do avatar.
@@ -148,6 +208,48 @@ Future<void> pushProject(
   run: (vm) => vm.gitPush(rootPath),
   title: (label) => context.t.cockpit.cockpitPage.pushTitle(label: label),
 );
+
+/// Troca a branch do workspace [project] na root [rootPath].
+///
+/// Só para workspace **raiz local**: a worktree (fork) é definida pela própria
+/// branch (nome/merge/remove dependem dela), então trocar a branch ali quebraria
+/// essas ações — pra isso o fluxo é criar outra worktree. Remoto tem caminho
+/// próprio (`handleRemoteWorkspaceAction`).
+///
+/// A branch remota sem local homônima vira uma tracking branch
+/// (`checkout -b <name> --track <remote>`); árvore suja fica a cargo do git, que
+/// recusa e mostra o erro no dialog de processo.
+Future<void> switchBranch(
+  BuildContext context,
+  Project project,
+  String rootPath,
+) async {
+  final vm = _vm(context);
+  final namespace = await vm.worktreeNamespace(project.id, rootPath: rootPath);
+  if (!context.mounted) return;
+  final current = vm.gitInfoForRootIn(project.id, rootPath)?.branch;
+  final selection = await showBranchSwitchDialog(
+    context,
+    rootName: gitOpLabel(project, rootPath),
+    currentBranch: current,
+    namespace: namespace,
+  );
+  if (selection == null || !context.mounted) return;
+  final run = vm.gitCheckout(
+    rootPath,
+    selection.name,
+    trackRemote: selection.remote,
+  );
+  await showGitProcessDialog(
+    context,
+    title: context.t.cockpit.cockpitPage.switchBranchTitle(
+      label: gitOpLabel(project, rootPath),
+    ),
+    output: run.output,
+    success: run.exitCode.then((c) => c == 0),
+  );
+  await vm.refreshGitProject(project.id);
+}
 
 /// Forma comum de sync/pull/push: roda o comando, mostra a saída ao vivo e
 /// re-lê o estado git do workspace no fim.

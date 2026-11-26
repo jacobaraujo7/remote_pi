@@ -4,6 +4,8 @@ import 'package:flutter/material.dart'
     show ScrollbarTheme, TargetPlatform, Theme;
 import 'package:flutter/widgets.dart';
 
+import 'editor_wrap_layout.dart';
+
 /// Identificador de coluna no overview à direita do editor.
 ///
 /// Ordem visual: da **esquerda → direita** na strip; a coluna mais à direita
@@ -62,6 +64,7 @@ class EditorOverviewRuler extends StatelessWidget {
     this.scrollContentExtent,
     this.scrollViewportExtent,
     this.onJumpToLine,
+    this.wrap,
   });
 
   /// Colunas da esquerda → direita (direita = sob a scrollbar).
@@ -81,6 +84,11 @@ class EditorOverviewRuler extends StatelessWidget {
   final double? scrollContentExtent;
   final double? scrollViewportExtent;
   final ValueChanged<int>? onJumpToLine;
+
+  /// Editor com quebra de linha: posição Y de cada linha vem da tabela (linhas
+  /// lógicas com alturas diferentes). `null` = uma linha visual por linha
+  /// lógica (`(line - 1) * lineHeight`).
+  final EditorWrapLayout? wrap;
 
   double get totalWidth => columns.fold<double>(0, (sum, c) => sum + c.width);
 
@@ -149,6 +157,7 @@ class EditorOverviewRuler extends StatelessWidget {
             lineCount: lineCount,
             lineHeight: lineHeight,
             geometry: geometry,
+            wrap: wrap,
           ),
         );
         final jump = onJumpToLine;
@@ -164,6 +173,7 @@ class EditorOverviewRuler extends StatelessWidget {
                 lineHeight: lineHeight,
                 contentExtent: contentExtent,
                 geometry: geometry,
+                wrap: wrap,
               ),
             );
           },
@@ -187,14 +197,21 @@ double overviewContentHeight({
 double overviewContentOffsetForLine({
   required int line,
   required double lineHeight,
-}) => (line - 1).clamp(0, 1 << 30) * lineHeight;
+  EditorWrapLayout? wrap,
+}) => overviewContentOffsetForBoundary(
+  boundary: line - 1,
+  lineHeight: lineHeight,
+  wrap: wrap,
+);
 
 /// Offset Y no conteúdo para fronteira `0..lineCount`.
 @visibleForTesting
 double overviewContentOffsetForBoundary({
   required int boundary,
   required double lineHeight,
-}) => boundary.clamp(0, 1 << 30) * lineHeight;
+  EditorWrapLayout? wrap,
+}) =>
+    wrap != null ? wrap.top(boundary) : boundary.clamp(0, 1 << 30) * lineHeight;
 
 /// Mapeia offset de conteúdo → Y na trilha (mesma proporção da Scrollbar).
 @visibleForTesting
@@ -341,6 +358,7 @@ int overviewRulerLineForDy({
   double contentPaddingBottom = 0,
   double? contentExtent,
   OverviewRulerGeometry? geometry,
+  EditorWrapLayout? wrap,
 }) {
   if (trackHeight <= 0 || lineCount <= 0 || lineHeight <= 0) return 1;
   final contentHeight =
@@ -353,7 +371,9 @@ int overviewRulerLineForDy({
   final contentY =
       geometry?.trackToContent(dy) ??
       ((dy - trackTop) / trackHeight).clamp(0.0, 1.0) * contentHeight;
-  final line = (contentY / lineHeight).floor() + 1;
+  final line = wrap != null
+      ? wrap.lineAtY(contentY) + 1
+      : (contentY / lineHeight).floor() + 1;
   return line.clamp(1, lineCount);
 }
 
@@ -377,12 +397,18 @@ class _OverviewRulerPainter extends CustomPainter {
     required this.lineCount,
     required this.lineHeight,
     required this.geometry,
-  });
+    this.wrap,
+  }) : wrapRevision = wrap?.revision,
+       // A tabela é medida no layout, depois deste build: repinta quando ela
+       // mudar, em vez de esperar o próximo rebuild.
+       super(repaint: wrap);
 
   final List<OverviewRulerColumn> columns;
   final int lineCount;
   final double lineHeight;
   final OverviewRulerGeometry geometry;
+  final EditorWrapLayout? wrap;
+  final int? wrapRevision;
 
   static const double _minTick = 1.5;
 
@@ -406,6 +432,7 @@ class _OverviewRulerPainter extends CustomPainter {
             overviewContentOffsetForBoundary(
               boundary: mark.startLine,
               lineHeight: lineHeight,
+              wrap: wrap,
             ),
           );
           final top = (y - _minTick / 2).clamp(
@@ -418,12 +445,14 @@ class _OverviewRulerPainter extends CustomPainter {
             overviewContentOffsetForLine(
               line: mark.startLine,
               lineHeight: lineHeight,
+              wrap: wrap,
             ),
           );
           final bottom = geometry.contentToTrack(
             overviewContentOffsetForLine(
               line: mark.endLine + 1,
               lineHeight: lineHeight,
+              wrap: wrap,
             ),
           );
           final h = (bottom - top).clamp(_minTick, geometry.trackExtent);
@@ -443,6 +472,8 @@ class _OverviewRulerPainter extends CustomPainter {
       old.lineCount != lineCount ||
       old.lineHeight != lineHeight ||
       old.geometry != geometry ||
+      !identical(old.wrap, wrap) ||
+      old.wrapRevision != wrapRevision ||
       !_sameColumns(old.columns, columns);
 
   static bool _sameColumns(

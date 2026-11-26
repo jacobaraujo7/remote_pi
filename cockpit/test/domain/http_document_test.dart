@@ -27,6 +27,61 @@ PUT {{baseUrl}}/users/1
 ''';
 
 void main() {
+  test('scripts externos e inline mantêm ordem sem contaminar o body', () {
+    final doc = HttpDocument.parse('''
+### Upload
+< "scripts/pre request.js"
+< {% request.variables.set('id', 42); %}
+< ./another.cjs
+POST https://example.test/{{id}}
+Content-Type: application/json
+
+{"id": 1}
+> ./scripts/check.mjs
+> {% client.log(response.status); %}
+> './scripts/last check.js'
+### Next
+GET https://example.test/next
+''');
+    final request = doc.requests.first;
+    expect(request.startLine, 0);
+    expect(request.preScripts, [
+      (code: null, path: 'scripts/pre request.js'),
+      (code: "request.variables.set('id', 42);", path: null),
+      (code: null, path: './another.cjs'),
+    ]);
+    expect(request.postScripts.map((s) => s.path), [
+      './scripts/check.mjs',
+      null,
+      './scripts/last check.js',
+    ]);
+    expect(request.body, '{"id": 1}');
+    expect(request.bodyFile, isNull);
+    final resolved = doc.resolveRequest(
+      request,
+      requestVariables: {'id': '42'},
+    );
+    expect(resolved.preScripts, request.preScripts);
+    expect(resolved.postScripts, request.postScripts);
+    expect(doc.requests.last.preScripts, isEmpty);
+    expect(doc.requests.last.postScripts, isEmpty);
+  });
+
+  test('pre-request externo faz parte da faixa antes do verbo', () {
+    final doc = HttpDocument.parse('< ./pre.js\nGET https://example.test');
+    expect(doc.requests.single.startLine, 0);
+    expect(doc.requests.single.requestLine, 1);
+  });
+
+  test('importação de body JavaScript após o verbo continua sendo body', () {
+    final request = HttpDocument.parse(
+      'POST https://example.test\n< ./body.js',
+    ).requests.single;
+    expect(request.bodyFile, './body.js');
+    expect(request.preScripts, isEmpty);
+    expect(request.postScripts, isEmpty);
+  });
+
   group('parse', () {
     final doc = HttpDocument.parse(_source);
 
@@ -45,6 +100,7 @@ void main() {
         'Upload',
       ]);
       expect(doc.requests.map((r) => r.method), ['GET', 'POST', 'PUT']);
+      expect(doc.requests.map((r) => r.requestLine), [6, 11, 20]);
     });
 
     test('headers ficam na ordem, sem o body', () {
@@ -79,11 +135,168 @@ void main() {
     expect(HttpDocument.unresolvedIn(r), isEmpty);
   });
 
+  test('parâmetros em linhas seguintes compõem a URL sem virar body', () {
+    const source = '''@baseUrl = https://shop.example
+GET {{baseUrl}}/api/products
+    ?page=1
+    &pageSize=20
+    &category=electronics
+    &sortBy=price
+    &sortOrder=asc
+    &includeInactive=false
+Accept: application/json
+''';
+    final document = HttpDocument.parse(source);
+    final request = document.requests.single;
+    expect(
+      request.url,
+      '{{baseUrl}}/api/products?page=1&pageSize=20&category=electronics&sortBy=price&sortOrder=asc&includeInactive=false',
+    );
+    expect(request.body, isNull);
+    expect(request.headers.single.name, 'Accept');
+    expect(
+      document.resolveRequest(request).url,
+      'https://shop.example/api/products?page=1&pageSize=20&category=electronics&sortBy=price&sortOrder=asc&includeInactive=false',
+    );
+  });
+
+  test('parâmetros no body não alteram a URL', () {
+    final document = HttpDocument.parse(
+      'POST https://example.test/x\n\n?page=1\n&size=2\n',
+    );
+    final request = document.requests.single;
+    expect(request.url, 'https://example.test/x');
+    expect(request.body, '?page=1\n&size=2');
+  });
+
   test('variável desconhecida sobra intacta e é reportada', () {
     final doc = HttpDocument.parse('GET https://a.b/{{missing}}\n');
     final r = doc.resolveRequest(doc.requests.single);
     expect(r.url, 'https://a.b/{{missing}}');
     expect(HttpDocument.unresolvedIn(r), ['missing']);
+  });
+
+  test('ambiente resolve placeholders e variável local pode sobrescrever', () {
+    final doc = HttpDocument.parse(
+      '@host = https://local.example\nGET {{host}}/x?token={{token}}\n',
+    );
+    final resolved = doc.resolveRequest(
+      doc.requests.single,
+      environment: {'host': 'https://env.example', 'token': 'secret'},
+    );
+    expect(resolved.url, 'https://local.example/x?token=secret');
+    expect(HttpDocument.unresolvedIn(resolved), isEmpty);
+  });
+
+  test(
+    'sobrescrita temporária vence ambiente, global, @ e variável de script',
+    () {
+      final doc = HttpDocument.parse('''
+@host = https://local.example
+@path = {{host}}/items
+GET {{path}}/{{id}}
+X-Token: {{token}}
+
+{"enabled": {{enabled}}}
+''');
+      final overrides = {
+        'host': 'https://temporary.example',
+        'id': '42',
+        'token': 'temporary',
+        'enabled': 'true',
+      };
+      final resolved = doc.resolveRequest(
+        doc.requests.single,
+        environment: {'host': 'https://environment.example', 'id': '1'},
+        globals: {'token': 'global'},
+        requestVariables: {'id': '2'},
+        overrides: overrides,
+      );
+      expect(resolved.url, 'https://temporary.example/items/42');
+      expect(resolved.headers.single.value, 'temporary');
+      expect(resolved.body, '{"enabled": true}');
+      expect(
+        doc.interpolate('{{path}}', overrides: overrides),
+        'https://temporary.example/items',
+      );
+      expect(doc.variables['host'], 'https://local.example');
+    },
+  );
+
+  test('variável indefinida aceita override vazio e volta a undefined', () {
+    const source = 'GET https://example.test/{{missing}}';
+    final doc = HttpDocument.parse(source);
+    expect(HttpDocument.unresolvedPlaceholders(source), hasLength(1));
+    expect(
+      HttpDocument.unresolvedPlaceholders(source, overrides: {'missing': ''}),
+      isEmpty,
+    );
+    expect(
+      doc.resolveRequest(doc.requests.single, overrides: {'missing': ''}).url,
+      'https://example.test/',
+    );
+    expect(
+      doc.resolveRequest(doc.requests.single).url,
+      contains('{{missing}}'),
+    );
+  });
+
+  test('destaca apenas placeholders sem valor, fora de comentários', () {
+    const source = '// {{comentario}}\nGET {{host}}/x?token={{token}}\n';
+    final missing = HttpDocument.unresolvedPlaceholders(
+      source,
+      environment: {'host': 'https://example.com'},
+    );
+    expect(missing.map((m) => m.name), ['token']);
+    expect(
+      source.substring(missing.single.start, missing.single.end),
+      '{{token}}',
+    );
+  });
+
+  test('variáveis do script resolvem só a seção que foi executada', () {
+    const source = '''
+### Primeira
+GET https://example.test/users?limit={{pageLimit}}
+
+### Segunda
+GET https://example.test/other?limit={{pageLimit}}
+''';
+    final missing = HttpDocument.unresolvedPlaceholders(
+      source,
+      requestVariablesByIndex: {
+        0: {'pageLimit': '7'},
+      },
+    );
+    expect(
+      HttpDocument.parse(
+        source,
+      ).interpolate('{{pageLimit}}', requestVariables: {'pageLimit': '7'}),
+      '7',
+    );
+    expect(missing.map((item) => item.name), ['pageLimit']);
+    expect(
+      source.substring(missing.single.start, missing.single.end),
+      '{{pageLimit}}',
+    );
+    expect(missing.single.start, source.lastIndexOf('{{pageLimit}}'));
+    expect(HttpDocument.unresolvedPlaceholders(source), hasLength(2));
+  });
+
+  test('globais de outra request resolvem placeholders em outro arquivo', () {
+    const source = 'GET https://example.test/{{accessToken}}/{{missing}}\n';
+    final missing = HttpDocument.unresolvedPlaceholders(
+      source,
+      globals: {'accessToken': 'token-from-login'},
+    );
+    expect(missing.map((item) => item.name), ['missing']);
+
+    final document = HttpDocument.parse(source);
+    final resolved = document.resolveRequest(
+      document.requests.single,
+      globals: {'accessToken': 'token-from-login'},
+    );
+    expect(resolved.url, 'https://example.test/token-from-login/{{missing}}');
   });
 
   test('casa o cursor com o request corrente', () {
@@ -101,6 +314,7 @@ void main() {
     expect(r.headers.single, (name: 'X-A', value: '1'));
     expect(r.body, 'hello');
     expect(r.label, 'POST https://a.b');
+    expect(r.requestLine, 0);
   });
 
   test('arquivo vazio ou só comentário não vira request', () {

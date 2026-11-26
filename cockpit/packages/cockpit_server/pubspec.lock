@@ -13,26 +13,26 @@ packages:
     dependency: "direct main"
     description:
       name: anaki_mongodb
-      sha256: "289d995ffd5fdba8897417cb516df22583b78f72d8bf27e073f874b5eae522ec"
+      sha256: "75c000d311734b80ba718ffbb90c1ce23de9dd008f60c2c385a252a42f843903"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.7"
+    version: "0.1.9"
   anaki_mssql:
     dependency: "direct main"
     description:
       name: anaki_mssql
-      sha256: "007a9ad84b92a1d00966c430cf70f7f83d28c7d49ceb82f03ca75febd565a102"
+      sha256: ab9c8962251cc17a5695831a2938b8a98770f63fbc27889611c31c33efd418ac
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.4"
+    version: "0.1.8"
   anaki_mysql:
     dependency: "direct main"
     description:
       name: anaki_mysql
-      sha256: "7629c4457fb23b8f8820e35806b4dc9b30cbea6dd008c0b5b82bfada84c23f40"
+      sha256: "08136b6c22c02f43a1782852e2cf6688afd5eea104bd9558e38c66c3f6bba105"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.7"
+    version: "0.1.11"
   anaki_orm:
     dependency: transitive
     description:
@@ -45,26 +45,26 @@ packages:
     dependency: "direct main"
     description:
       name: anaki_postgres
-      sha256: "33a192f26fff15502c870c9d0841f50f9a6a13904bb135e6a89dfee6a3c0a6ca"
+      sha256: fb185a73b146b793613ccd0082a6517735ff74150420b3994411154625fc8e1b
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.5"
+    version: "0.1.10"
   anaki_redis:
     dependency: "direct main"
     description:
       name: anaki_redis
-      sha256: "456f7072f176a83c2d767577608c8bf920de1c2c3bf28c812fd1e5edb0149d8d"
+      sha256: dedd80e99001da035f018d1e146244273062f81f3365a1263efda593ca71bed4
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.4"
+    version: "0.1.6"
   anaki_sqlite:
     dependency: "direct main"
     description:
       name: anaki_sqlite
-      sha256: d789ffded55658f58c8c0966f4dcdd4afd01b30952c97be555f92dae195d8340
+      sha256: "9fcf9d53123b74ae598ff7bd12042f2c596b9229b9fe803c3a3f3a9452ed862c"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.4"
+    version: "0.1.7"
   analyzer:
     dependency: transitive
     description:
@@ -147,6 +147,13 @@ packages:
     dependency: "direct main"
     description:
       path: "../cockpit_protocol"
+      relative: true
+    source: path
+    version: "0.1.0"
+  cockpit_remote:
+    dependency: "direct dev"
+    description:
+      path: "../cockpit_remote"
       relative: true
     source: path
     version: "0.1.0"

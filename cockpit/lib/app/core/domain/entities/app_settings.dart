@@ -26,6 +26,19 @@ enum SourceControlViewMode { list, tree }
 
 enum UpdateCheckFrequency { daily, weekly, monthly, never }
 
+const defaultFileNestingPatterns = <String, String>{
+  '*.ts':
+      r'${capture}.js, ${capture}.js.map, ${capture}.d.ts, ${capture}.ts.map',
+  '*.tsx': r'${capture}.js, ${capture}.js.map, ${capture}.d.ts',
+  '*.js': r'${capture}.js.map, ${capture}.min.js',
+  '*.css': r'${capture}.css.map, ${capture}.min.css',
+  '*.scss': r'${capture}.css, ${capture}.css.map',
+  'package.json':
+      'package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lock, bun.lockb',
+  'pubspec.yaml':
+      'pubspec.lock, .flutter-plugins, .flutter-plugins-dependencies',
+};
+
 /// Preferências do app, persistidas localmente (Hive). Imutável; mudanças via
 /// [copyWith]. Fontes vazias (`null`) = usar os defaults do design.
 class AppSettings {
@@ -44,6 +57,7 @@ class AppSettings {
     this.lspCommands = const <String, String>{},
     this.lspFormatters = const <String, String>{},
     this.formatOnSave = false,
+    this.editorWordWrap,
     this.closeTabOnShellExit = false,
     this.fileEditorEngine = FileEditorEngine.cockpit,
     this.notificationsEnabled = true,
@@ -63,6 +77,9 @@ class AppSettings {
     this.terminalEngine = TerminalEngine.ghostty,
     this.locale,
     this.sourceControlViewMode = SourceControlViewMode.list,
+    this.fileNestingEnabled = true,
+    this.fileNestingAutoExpand = false,
+    this.fileNestingPatterns = defaultFileNestingPatterns,
     this.automationHarnessId,
     this.automationModelId,
     this.updateCheckFrequency = UpdateCheckFrequency.daily,
@@ -121,6 +138,11 @@ class AppSettings {
 
   /// Formatar automaticamente ao salvar (Cmd+S).
   final bool formatOnSave;
+
+  /// Quebra de linha (soft wrap) no editor de arquivos, escolhida pelo usuário
+  /// (View → Toggle Word Wrap / ⌥Z, ou Settings). `null` = sem escolha: o editor usa o
+  /// padrão da linguagem (ligado em markdown/texto puro, desligado no resto).
+  final bool? editorWordWrap;
 
   /// Fecha a aba quando o shell encerra sozinho (ex.: `exit`, Ctrl-D), em vez
   /// de deixar um terminal morto na tela. Só vale para abas de shell.
@@ -216,6 +238,9 @@ class AppSettings {
   /// Layout padrão compartilhado por todos os workspaces, worktrees e seções
   /// (Changes/Staged) do Source Control.
   final SourceControlViewMode sourceControlViewMode;
+  final bool fileNestingEnabled;
+  final bool fileNestingAutoExpand;
+  final Map<String, String> fileNestingPatterns;
 
   /// Harness global usado pelas automações. Ausente = automações desabilitadas.
   final HarnessKind? automationHarnessId;
@@ -265,6 +290,8 @@ class AppSettings {
     Map<String, String>? lspCommands,
     Map<String, String>? lspFormatters,
     bool? formatOnSave,
+    bool? editorWordWrap,
+    bool clearEditorWordWrap = false,
     bool? closeTabOnShellExit,
     FileEditorEngine? fileEditorEngine,
     bool? notificationsEnabled,
@@ -286,6 +313,9 @@ class AppSettings {
     String? locale,
     bool clearLocale = false,
     SourceControlViewMode? sourceControlViewMode,
+    bool? fileNestingEnabled,
+    bool? fileNestingAutoExpand,
+    Map<String, String>? fileNestingPatterns,
     HarnessKind? automationHarnessId,
     bool clearAutomationHarnessId = false,
     String? automationModelId,
@@ -315,6 +345,9 @@ class AppSettings {
       lspCommands: lspCommands ?? this.lspCommands,
       lspFormatters: lspFormatters ?? this.lspFormatters,
       formatOnSave: formatOnSave ?? this.formatOnSave,
+      editorWordWrap: clearEditorWordWrap
+          ? null
+          : (editorWordWrap ?? this.editorWordWrap),
       closeTabOnShellExit: closeTabOnShellExit ?? this.closeTabOnShellExit,
       fileEditorEngine: fileEditorEngine ?? this.fileEditorEngine,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -337,6 +370,10 @@ class AppSettings {
       locale: clearLocale ? null : (locale ?? this.locale),
       sourceControlViewMode:
           sourceControlViewMode ?? this.sourceControlViewMode,
+      fileNestingEnabled: fileNestingEnabled ?? this.fileNestingEnabled,
+      fileNestingAutoExpand:
+          fileNestingAutoExpand ?? this.fileNestingAutoExpand,
+      fileNestingPatterns: fileNestingPatterns ?? this.fileNestingPatterns,
       automationHarnessId: clearAutomationHarnessId
           ? null
           : (automationHarnessId ?? this.automationHarnessId),
@@ -365,6 +402,8 @@ class AppSettings {
     if (lspCommands.isNotEmpty) 'lspCommands': lspCommands,
     if (lspFormatters.isNotEmpty) 'lspFormatters': lspFormatters,
     if (formatOnSave) 'formatOnSave': true,
+    // Só quando escolhido: ausência = padrão da linguagem.
+    if (editorWordWrap != null) 'editor.wordWrap': editorWordWrap,
     if (closeTabOnShellExit) 'closeTabOnShellExit': true,
     'editor.engine': fileEditorEngine.name,
     if (!notificationsEnabled) 'notificationsEnabled': false,
@@ -401,6 +440,9 @@ class AppSettings {
     // Só quando escolhido: ausência = seguir o locale do SO.
     if (locale != null) 'locale': locale,
     'sourceControl.viewMode': sourceControlViewMode.name,
+    'explorer.fileNesting.enabled': fileNestingEnabled,
+    'explorer.fileNesting.autoExpand': fileNestingAutoExpand,
+    'explorer.fileNesting.patterns': fileNestingPatterns,
     if (automationHarnessId != null)
       'automation.harnessId': automationHarnessId!.name,
     if (automationHarnessId != null)
@@ -449,6 +491,7 @@ class AppSettings {
       lspCommands: _strMap(json['lspCommands']),
       lspFormatters: _strMap(json['lspFormatters']),
       formatOnSave: json['formatOnSave'] as bool? ?? false,
+      editorWordWrap: json['editor.wordWrap'] as bool?,
       closeTabOnShellExit: json['closeTabOnShellExit'] as bool? ?? false,
       fileEditorEngine: _enumByName(
         FileEditorEngine.values,
@@ -485,6 +528,14 @@ class AppSettings {
         json['sourceControl.viewMode'],
         SourceControlViewMode.list,
       ),
+      fileNestingEnabled: json['explorer.fileNesting.enabled'] as bool? ?? true,
+      fileNestingAutoExpand:
+          json['explorer.fileNesting.autoExpand'] as bool? ?? false,
+      fileNestingPatterns: json['explorer.fileNesting.patterns'] is Map
+          ? (json['explorer.fileNesting.patterns'] as Map).map(
+              (key, value) => MapEntry(key.toString(), value.toString()),
+            )
+          : defaultFileNestingPatterns,
       automationHarnessId: automationHarnessId,
       automationModelId: automationModelId,
       updateCheckFrequency: _enumByName(

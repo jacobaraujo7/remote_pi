@@ -1,7 +1,8 @@
 import 'dart:io' show Platform;
 
-import 'package:cockpit/app/core/terminal/ghostty_font_family.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
+import 'package:cockpit/app/core/terminal/ghostty_font_family.dart';
+import 'package:cockpit/app/core/terminal/terminal_context_menu.dart';
 import 'package:cockpit/app/core/terminal/terminal_controller.dart';
 import 'package:cockpit/app/core/terminal/terminal_find.dart';
 import 'package:cockpit/app/core/terminal/terminal_font_weight.dart';
@@ -31,6 +32,9 @@ class AdaptiveTerminalPane extends StatelessWidget {
     this.onPaste,
     this.onOpenFile,
     this.readOnly = false,
+    this.enableLineHover = false,
+    this.onContextMenu,
+    this.ownerShortcuts = const {},
   });
 
   final CockpitTerminalController terminal;
@@ -42,6 +46,9 @@ class AdaptiveTerminalPane extends StatelessWidget {
   final VoidCallback? onPaste;
   final void Function(String path, {int? line})? onOpenFile;
   final bool readOnly;
+  final bool enableLineHover;
+  final TerminalContextMenuCallback? onContextMenu;
+  final Map<ShortcutActivator, VoidCallback> ownerShortcuts;
 
   @override
   Widget build(BuildContext context) => switch (terminal) {
@@ -52,8 +59,24 @@ class AdaptiveTerminalPane extends StatelessWidget {
       textStyle: textStyle,
       theme: theme,
       hardwareKeyboardOnly: readOnly,
-      onKeyEvent: onKeyEvent ?? (_) => KeyEventResult.ignored,
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent || event is KeyRepeatEvent) {
+          for (final entry in ownerShortcuts.entries) {
+            if (entry.key.accepts(event, HardwareKeyboard.instance)) {
+              entry.value();
+              return KeyEventResult.handled;
+            }
+          }
+        }
+        if (!readOnly && onPaste != null && isTerminalPasteEvent(event)) {
+          onPaste!();
+          return KeyEventResult.handled;
+        }
+        return onKeyEvent?.call(event) ?? KeyEventResult.ignored;
+      },
       onOpenFile: onOpenFile,
+      enableLineHover: enableLineHover,
+      onContextMenu: onContextMenu,
     ),
     final GhosttyTerminalController value => _GhosttyPane(
       terminal: value,
@@ -64,8 +87,16 @@ class AdaptiveTerminalPane extends StatelessWidget {
       onPaste: onPaste,
       onOpenFile: onOpenFile,
       readOnly: readOnly,
+      enableLineHover: enableLineHover,
+      onContextMenu: onContextMenu,
+      ownerShortcuts: ownerShortcuts,
     ),
   };
+}
+
+final class _CockpitOwnerShortcutIntent extends Intent {
+  const _CockpitOwnerShortcutIntent(this.invoke);
+  final VoidCallback invoke;
 }
 
 final class _CockpitPasteIntent extends Intent {
@@ -86,6 +117,9 @@ class _GhosttyPane extends StatefulWidget {
     required this.onPaste,
     required this.onOpenFile,
     required this.readOnly,
+    required this.enableLineHover,
+    required this.onContextMenu,
+    required this.ownerShortcuts,
   });
 
   final GhosttyTerminalController terminal;
@@ -96,6 +130,9 @@ class _GhosttyPane extends StatefulWidget {
   final VoidCallback? onPaste;
   final void Function(String path, {int? line})? onOpenFile;
   final bool readOnly;
+  final bool enableLineHover;
+  final TerminalContextMenuCallback? onContextMenu;
+  final Map<ShortcutActivator, VoidCallback> ownerShortcuts;
 
   @override
   State<_GhosttyPane> createState() => _GhosttyPaneState();
@@ -103,6 +140,78 @@ class _GhosttyPane extends StatefulWidget {
 
 class _GhosttyPaneState extends State<_GhosttyPane>
     with TerminalFindHost<_GhosttyPane> {
+  final _hoverLine = ValueNotifier<TerminalLineHit?>(null);
+  bool _hoverRefreshScheduled = false;
+  Offset? _lastHoverLocal;
+  Size? _lastSize;
+  double _visibleCellHeight = 0;
+
+  static const _lineHoverOpacity = 0.12;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.terminal.viewportContentChanges.addListener(_scheduleHoverRefresh);
+  }
+
+  @override
+  void dispose() {
+    widget.terminal.viewportContentChanges.removeListener(
+      _scheduleHoverRefresh,
+    );
+    _hoverLine.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _GhosttyPane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.terminal != widget.terminal) {
+      oldWidget.terminal.viewportContentChanges.removeListener(
+        _scheduleHoverRefresh,
+      );
+      widget.terminal.viewportContentChanges.addListener(_scheduleHoverRefresh);
+    }
+    _scheduleHoverRefresh();
+  }
+
+  void _scheduleHoverRefresh() {
+    if (_hoverRefreshScheduled || _lastHoverLocal == null) return;
+    _hoverRefreshScheduled = true;
+    WidgetsBinding.instance.scheduleFrameCallback((_) {
+      _hoverRefreshScheduled = false;
+      if (!mounted) return;
+      final local = _lastHoverLocal;
+      final size = _lastSize;
+      if (local != null && size != null) _setHover(_lineAt(local, size));
+    });
+  }
+
+  TerminalLineHit? _lineAt(Offset local, Size size) {
+    if (!widget.enableLineHover ||
+        size.isEmpty ||
+        _visibleCellHeight <= 0 ||
+        local.dx < 0 ||
+        local.dx >= size.width ||
+        local.dy < 0 ||
+        local.dy >= size.height) {
+      return null;
+    }
+    return widget.terminal.lineAtViewportRow(
+      (local.dy / _visibleCellHeight).floor(),
+    );
+  }
+
+  void _setHover(TerminalLineHit? value) {
+    final previous = _hoverLine.value;
+    if (value?.firstViewportRow == previous?.firstViewportRow &&
+        value?.lastViewportRow == previous?.lastViewportRow &&
+        value?.text == previous?.text) {
+      return;
+    }
+    _hoverLine.value = value;
+  }
+
   @override
   FocusNode get terminalFocusNode => widget.focusNode;
 
@@ -117,6 +226,8 @@ class _GhosttyPaneState extends State<_GhosttyPane>
     final readOnly = widget.readOnly;
     final onPaste = widget.onPaste;
     final shortcuts = <ShortcutActivator, Intent>{
+      for (final entry in widget.ownerShortcuts.entries)
+        entry.key: _CockpitOwnerShortcutIntent(entry.value),
       // ⌘F / Ctrl-F opens the find bar (works even read-only — searching a
       // frozen buffer is fine). Resolved by the Actions scope below, where
       // flterm dispatches the shortcuts it receives. Ctrl-F only off macOS:
@@ -162,20 +273,12 @@ class _GhosttyPaneState extends State<_GhosttyPane>
       uiScale,
       fontWeight,
     );
-
     final Widget terminalView = ghost.TerminalView(
-      // IDENTIDADE GLOBAL e estável por sessão (o controller é único por aba).
-      // Quando a árvore de panes reestrutura (split envolve a folha num
-      // SplitPane, fechar um pane remove um nó), a subárvore da TerminalView
-      // MUDA de posição na árvore de widgets. Sem GlobalKey o Flutter RE-INFLA
-      // a TerminalView na posição nova (novo initState → attachView) antes do
-      // dispose/detach da antiga → "already has an active view", e no mount
-      // simultâneo do restore cruza a State entre panes → espelho. Com a
-      // GlobalKey o Flutter MOVE o mesmo Element (preserva o ViewAttachment/
-      // lease do controller) em vez de recriar. Junto ao [TerminalUnzoomBox]
-      // sem LayoutBuilder, mata crash e espelho.
-      key: GlobalObjectKey(widget.terminal.controller),
+      // Identity is per session. StablePaneHost keeps this subtree under the
+      // same parent even when its tab moves to another dock.
+      key: ObjectKey(widget.terminal.controller),
       controller: widget.terminal.controller,
+      scrollController: widget.terminal.scrollController,
       presentationActive: widget.active,
       focusNode: widget.focusNode,
       showKeyboard: !readOnly,
@@ -183,6 +286,17 @@ class _GhosttyPaneState extends State<_GhosttyPane>
       scrollPhysics: const ClampingScrollPhysics(),
       shortcuts: shortcuts,
       theme: ghosttyTheme,
+      overlayBuilder: (context, geometry) {
+        final height = geometry
+            .cellRect(const ghost.Position(row: 0, col: 0))
+            ?.height;
+        final visibleHeight = (height ?? 0) / uiScale;
+        if (_visibleCellHeight != visibleHeight) {
+          _visibleCellHeight = visibleHeight;
+          _scheduleHoverRefresh();
+        }
+        return const SizedBox.shrink();
+      },
       linkSettings: ghost.LinkSettings(
         // Hover e abertura seguem exigindo ⌘/Ctrl (default do flterm): num
         // terminal cheio de caminhos, clique simples continua só posicionando o
@@ -195,7 +309,15 @@ class _GhosttyPaneState extends State<_GhosttyPane>
       ),
     );
 
-    final view = TerminalUnzoomBox(scale: uiScale, child: terminalView);
+    final view = TerminalUnzoomBox(
+      scale: uiScale,
+      child: _GhosttyViewLease(
+        key: ObjectKey(widget.terminal.controller),
+        controller: widget.terminal.controller,
+        active: widget.active,
+        child: terminalView,
+      ),
+    );
 
     // Aba inativa: a TerminalView fica MONTADA, só não é pintada. Antes ela era
     // trocada por um `SizedBox` e cada volta pra aba pagava um `initState`
@@ -205,11 +327,9 @@ class _GhosttyPaneState extends State<_GhosttyPane>
     // `TickerMode` desliga o blink do cursor enquanto oculta. O parser e o
     // scrollback seguem no controller; presentationActive suspende apenas as
     // invalidacoes visuais e faz um layout completo ao reabrir.
-    // StackFit.expand hands the (non-positioned) terminal TIGHT full-size
-    // constraints — same as the old direct return. Without it the Stack's
-    // default loose fit gives flterm's TerminalView slack, and its
-    // performLayout->onResize->setState grid report oscillates into an infinite
-    // relayout (100% CPU). The find bar is a Positioned child, unaffected.
+    // StackFit.expand keeps the terminal tightly constrained. Loose constraints
+    // make flterm's layout, resize and setState cycle oscillate indefinitely,
+    // consuming 100% CPU. The positioned find bar is unaffected.
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -219,6 +339,13 @@ class _GhosttyPaneState extends State<_GhosttyPane>
             enabled: widget.active,
             child: Actions(
               actions: <Type, Action<Intent>>{
+                _CockpitOwnerShortcutIntent:
+                    CallbackAction<_CockpitOwnerShortcutIntent>(
+                      onInvoke: (intent) {
+                        intent.invoke();
+                        return null;
+                      },
+                    ),
                 _CockpitPasteIntent: CallbackAction<_CockpitPasteIntent>(
                   onInvoke: (_) {
                     onPaste?.call();
@@ -232,7 +359,59 @@ class _GhosttyPaneState extends State<_GhosttyPane>
                   },
                 ),
               },
-              child: view,
+              child: Builder(
+                builder: (hoverContext) => MouseRegion(
+                  onHover: (event) {
+                    final size = hoverContext.size;
+                    if (size == null) return;
+                    _lastHoverLocal = event.localPosition;
+                    _lastSize = size;
+                    _setHover(_lineAt(event.localPosition, size));
+                  },
+                  onExit: (_) {
+                    _lastHoverLocal = null;
+                    _lastSize = null;
+                    _setHover(null);
+                  },
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onSecondaryTapUp: widget.onContextMenu == null
+                        ? null
+                        : (details) {
+                            final size = hoverContext.size;
+                            final line = size == null
+                                ? _hoverLine.value
+                                : _lineAt(details.localPosition, size);
+                            widget.onContextMenu!(
+                              TerminalContextMenuRequest(
+                                globalPosition: details.globalPosition,
+                                selectedText: widget.terminal.selectedText(),
+                                line: line,
+                              ),
+                            );
+                          },
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        view,
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: _TerminalLineHoverPainter(
+                                line: _hoverLine,
+                                cellHeight: () => _visibleCellHeight,
+                                color: widget.theme.selection.withValues(
+                                  alpha: _lineHoverOpacity,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -268,6 +447,126 @@ class _GhosttyPaneState extends State<_GhosttyPane>
       onOpenFile: widget.onOpenFile,
     );
   }
+}
+
+/// flterm allows one TerminalView per controller. When Flutter replaces a
+/// presentation parent, the new subtree can mount before the old subtree is
+/// disposed at the end of the frame. Wait for that disposal before attaching
+/// the replacement view. GlobalKey reparenting is unsafe here: flterm releases
+/// its attachment on deactivate while its render object is still attached.
+/// When two task-output tabs share a controller, an inactive owner yields to
+/// the visible tab so an offstage workspace cannot leave the panel blank.
+class _GhosttyViewLease extends StatefulWidget {
+  const _GhosttyViewLease({
+    super.key,
+    required this.controller,
+    required this.active,
+    required this.child,
+  });
+
+  final ghost.TerminalController controller;
+  final bool active;
+  final Widget child;
+
+  @override
+  State<_GhosttyViewLease> createState() => _GhosttyViewLeaseState();
+}
+
+class _GhosttyViewLeaseState extends State<_GhosttyViewLease> {
+  static final _owners = <ghost.TerminalController, _GhosttyViewLeaseState>{};
+  static final _waiting =
+      <ghost.TerminalController, Set<_GhosttyViewLeaseState>>{};
+
+  bool _owns = false;
+  bool _handoffScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _acquire();
+  }
+
+  void _acquire() {
+    final owner = _owners[widget.controller];
+    if (owner == null || identical(owner, this)) {
+      _owners[widget.controller] = this;
+      _waiting[widget.controller]?.remove(this);
+      _owns = true;
+    } else {
+      (_waiting[widget.controller] ??= {}).add(this);
+      _owns = false;
+      if (widget.active) owner._yieldToActiveView();
+    }
+  }
+
+  void _yieldToActiveView() {
+    if (_handoffScheduled || widget.active) return;
+    _handoffScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handoffScheduled = false;
+      if (!mounted || !_owns || widget.active) return;
+      final waiters = _waiting[widget.controller];
+      if (waiters == null || !waiters.any((waiter) => waiter.widget.active)) {
+        return;
+      }
+      final controller = widget.controller;
+      setState(() => _owns = false);
+      // The view is removed in the next build; release the lease only after
+      // that frame has finalized and flterm has disposed its attachment.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_owns && widget.controller == controller) {
+          _release(controller);
+        }
+      });
+      WidgetsBinding.instance.scheduleFrame();
+    });
+  }
+
+  @override
+  void didUpdateWidget(_GhosttyViewLease oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      _release(oldWidget.controller);
+      _acquire();
+    } else if (!_owns && widget.active) {
+      _acquire();
+    } else if (_owns && !widget.active) {
+      final waiters = _waiting[widget.controller];
+      if (waiters != null && waiters.any((waiter) => waiter.widget.active)) {
+        _yieldToActiveView();
+      }
+    }
+  }
+
+  void _release(ghost.TerminalController controller) {
+    final waiters = _waiting[controller];
+    waiters?.remove(this);
+    if (waiters != null && waiters.isEmpty) _waiting.remove(controller);
+    if (_owners[controller] != this) return;
+    _owners.remove(controller);
+    final next = _waiting[controller];
+    if (next == null || next.isEmpty) return;
+    // Flutter disposes the old TerminalView during tree finalization. Mount a
+    // waiting view in the next frame, after flterm has detached its controller.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final waiter in next.toList()) {
+        if (!waiter.mounted || waiter.widget.controller != controller) continue;
+        waiter.setState(waiter._acquire);
+      }
+      if (next.isEmpty) _waiting.remove(controller);
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  @override
+  void dispose() {
+    _release(widget.controller);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _owns ? widget.child : const SizedBox.shrink();
 }
 
 /// Traduz o tema do xterm para o do flterm. [uiScale] multiplica **só** o
@@ -317,3 +616,46 @@ ghost.TerminalTheme _ghosttyTheme(
   fontSize: style.fontSize * uiScale,
   fontWeight: fontWeight,
 );
+
+/// The xterm callback and Ghostty shortcut map accept the same gestures.
+bool isTerminalPasteEvent(KeyEvent event) {
+  if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyV) {
+    return false;
+  }
+  final keyboard = HardwareKeyboard.instance;
+  return !keyboard.isAltPressed &&
+      !keyboard.isShiftPressed &&
+      (keyboard.isControlPressed != keyboard.isMetaPressed);
+}
+
+/// Pointer changes repaint only this overlay; the terminal subtree stays put.
+class _TerminalLineHoverPainter extends CustomPainter {
+  _TerminalLineHoverPainter({
+    required this.line,
+    required this.cellHeight,
+    required this.color,
+  }) : super(repaint: line);
+  final ValueNotifier<TerminalLineHit?> line;
+  final double Function() cellHeight;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final hit = line.value;
+    if (hit == null) return;
+    final height = cellHeight();
+    canvas.drawRect(
+      Rect.fromLTWH(
+        0,
+        hit.firstViewportRow * height,
+        size.width,
+        (hit.lastViewportRow - hit.firstViewportRow + 1) * height,
+      ),
+      Paint()..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _TerminalLineHoverPainter old) =>
+      old.line != line || old.color != color || old.cellHeight != cellHeight;
+}

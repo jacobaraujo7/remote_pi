@@ -37,6 +37,8 @@ class ClaudeHookInstallerImpl extends HookInstallerBase {
     'Stop',
     'SessionStart',
     'SessionEnd',
+    'SubagentStart',
+    'SubagentStop',
   ];
 
   @override
@@ -88,6 +90,16 @@ class ClaudeHookInstallerImpl extends HookInstallerBase {
     }
 
     root['hooks'] = hooks;
+    // Claude Code exposes exact context usage only to the status-line JSON.
+    // Install our companion when that slot is free; never replace a custom
+    // status line the user has already configured.
+    if (!root.containsKey('statusLine') && command.endsWith(' hook')) {
+      root['statusLine'] = <String, dynamic>{
+        'type': 'command',
+        'command': '${command.substring(0, command.length - 5)} statusline',
+        _marker: _markerValue,
+      };
+    }
     // Sempre regrava (idempotente no conteúdo lógico; barato).
     await file.writeAsString(
       '${const JsonEncoder.withIndent('  ').convert(root)}\n',

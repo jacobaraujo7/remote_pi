@@ -5,9 +5,10 @@ import 'dart:io';
 /// - **macOS / Linux**: `$HOME`.
 ///
 /// Retorna `null` quando nenhuma das variáveis está definida (ambiente mínimo).
-String? userHome() {
-  final env = Platform.environment;
-  if (Platform.isWindows) {
+/// [environment] e [isWindows] existem pra teste; por padrão vêm do processo.
+String? userHome({Map<String, String>? environment, bool? isWindows}) {
+  final env = environment ?? Platform.environment;
+  if (isWindows ?? Platform.isWindows) {
     final profile = env['USERPROFILE'];
     if (profile != null && profile.isNotEmpty) return profile;
     final drive = env['HOMEDRIVE'];

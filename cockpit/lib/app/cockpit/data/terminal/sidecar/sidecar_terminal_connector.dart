@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/core/utils/child_process_lifetime.dart';
@@ -66,6 +67,13 @@ class SidecarTerminalConnector implements TurnStatusSource {
           sessionId: s.sid,
           transcriptPath: s.transcriptPath,
           harness: s.harness,
+          subagentId: s.subagentId,
+          subagentType: s.subagentType,
+          eventAt: s.eventAt,
+          contextTokens: s.contextTokens,
+          contextWindow: s.contextWindow,
+          graphRecipient: s.graphRecipient,
+          graphSelfName: s.graphSelfName,
         ),
       ),
     );
@@ -116,18 +124,10 @@ class SidecarTerminalConnector implements TurnStatusSource {
       final ptyDylib = File('$libDir/${_ptyLibName()}');
       _child = await Process.start(
         binary,
-        [
-          '--socket',
-          socketPath,
-          '--exit-on-idle',
-          '15',
-          // Amarra a vida do sidecar à do app: quando este processo morre, o
-          // kernel fecha a ponta de escrita do stdin do filho e ele sai por
-          // EOF. Cobre a morte ABRUPTA (Force Quit, kill -9, crash), que o
-          // `dispose()` não cobre porque não chega a rodar. Fora do Windows é
-          // a única amarra que existe — lá o Job Object abaixo já garante.
-          '--exit-on-parent-close',
-        ],
+        serverArguments(
+          socketPath: socketPath,
+          isolatedRuntime: cockpitIsolatedRoot() != null,
+        ),
         environment: {
           ...Platform.environment,
           if (ptyDylib.existsSync()) 'COCKPIT_PTY_DYLIB': ptyDylib.path,
@@ -246,8 +246,23 @@ class SidecarTerminalConnector implements TurnStatusSource {
     }
   }
 
+  /// The private acceptance instance must not rewrite the live agents' setup.
+  @visibleForTesting
+  static List<String> serverArguments({
+    required String socketPath,
+    required bool isolatedRuntime,
+  }) => [
+    '--socket',
+    socketPath,
+    '--exit-on-idle',
+    '15',
+    // Parent stdin EOF ends the child after an abrupt app shutdown too.
+    '--exit-on-parent-close',
+    if (isolatedRuntime) ...['--no-hooks', '--no-skills'],
+  ];
+
   String? _socketPath() {
-    final home = userHome();
+    final home = cockpitIsolatedRoot() ?? userHome();
     if (home == null) return null;
     final dir = Directory('$home/.cockpit');
     if (!dir.existsSync()) dir.createSync(recursive: true);

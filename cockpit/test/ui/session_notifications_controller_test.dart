@@ -6,7 +6,10 @@ import 'package:cockpit/app/core/ui/window_activity_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakePane extends PaneItem {
-  _FakePane(this.id);
+  _FakePane(this.id, {this.owner = const TerminalOwner.workspace()});
+
+  @override
+  final TerminalOwner owner;
 
   @override
   final String id;
@@ -60,6 +63,37 @@ class _FakeNotifier implements Notifier {
 }
 
 void main() {
+  test(
+    'owned completions never touch global badges, sounds or OS alerts',
+    () async {
+      final activity = WindowActivityController()..blur();
+      final notifier = _FakeNotifier();
+      final global = SessionNotificationsController(notifier, activity);
+      final a = _FakePane(
+        'a',
+        owner: const TerminalOwner.orchestration('doc-a'),
+      );
+      final b = _FakePane(
+        'b',
+        owner: const TerminalOwner.orchestration('doc-b'),
+      );
+      var changes = 0;
+      global.addListener(() => changes++);
+      await global.turnFinished(a);
+      activity.focus();
+      await global.turnFinished(b);
+      expect(notifier.finished, 0);
+      expect(notifier.played, 0);
+      expect(changes, 0);
+      expect(a.unseenFinish, isFalse);
+      expect(b.unseenFinish, isFalse);
+      global.dispose();
+      activity.dispose();
+      a.dispose();
+      b.dispose();
+    },
+  );
+
   test('multiple completions only notify when a badge changes', () async {
     final activity = WindowActivityController();
     final notifier = _FakeNotifier();

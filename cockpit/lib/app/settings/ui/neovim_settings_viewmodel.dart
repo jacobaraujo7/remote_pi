@@ -6,6 +6,7 @@ class NeovimSettingsViewModel extends ChangeNotifier {
 
   final NeovimGateway _gateway;
 
+  bool _disposed = false;
   bool _checking = false;
   bool get checking => _checking;
 
@@ -14,11 +15,23 @@ class NeovimSettingsViewModel extends ChangeNotifier {
   bool get available => _executable != null;
 
   Future<void> check({bool refresh = false}) async {
-    if (_checking) return;
+    if (_disposed || _checking) return;
     _checking = true;
     notifyListeners();
-    _executable = await _gateway.executable(refresh: refresh);
-    _checking = false;
-    notifyListeners();
+    try {
+      final executable = await _gateway.executable(refresh: refresh);
+      if (!_disposed) _executable = executable;
+    } catch (_) {
+      if (!_disposed) rethrow;
+    } finally {
+      _checking = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

@@ -82,7 +82,16 @@ List<MenuBarMenu> buildAppMenus(
         MenuAction(
           tr.newTerminal,
           accelerator: const MenuAccelerator(LogicalKeyboardKey.keyT),
+          shortcutHandledExternally: true,
           onSelected: workspace.hasWorkspace ? workspace.newTerminal : null,
+        ),
+      // ⌘N abre um buffer "Untitled-N" (VSCode-style): sem arquivo até o
+      // primeiro save, que pede o nome. ⇧⌘N segue sendo "workspace anterior".
+      if (!isMobilePlatform)
+        MenuAction(
+          tr.newFile,
+          accelerator: const MenuAccelerator(LogicalKeyboardKey.keyN),
+          onSelected: workspace.hasWorkspace ? workspace.newFile : null,
         ),
       if (!isMobilePlatform) const MenuSeparator(),
       if (!isMobilePlatform)
@@ -243,6 +252,21 @@ List<MenuBarMenu> buildAppMenus(
           onSelected: workspace.hasWorkspace ? workspace.nextWorkspace : null,
         ),
       if (!isMobilePlatform) const MenuSeparator(),
+      // Word wrap do editor focado (⌥Z, como no VS Code). A tecla é tratada
+      // pelo próprio `FileViewer` (escopo do editor): um atalho global roubaria
+      // o Alt+Z dos terminais no Windows/Linux, onde Alt vira Meta. Ativo só
+      // com um editor de arquivo focado (estado via [EditorMenuBridge]).
+      MenuAction(
+        tr.toggleWordWrap,
+        accelerator: const MenuAccelerator(
+          LogicalKeyboardKey.keyZ,
+          alt: true,
+          primary: false,
+        ),
+        shortcutHandledExternally: true,
+        onSelected: editor.canToggleWordWrap ? editor.toggleWordWrap : null,
+      ),
+      const MenuSeparator(),
       MenuAction(
         tr.zoomIn,
         accelerator: const MenuAccelerator(LogicalKeyboardKey.equal),
