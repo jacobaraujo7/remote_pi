@@ -432,6 +432,21 @@ class _BoardState extends State<BoardView> {
       return KeyEventResult.ignored;
     }
     final keyboard = HardwareKeyboard.instance;
+    if ((keyboard.isControlPressed || keyboard.isMetaPressed) &&
+        event.logicalKey == LogicalKeyboardKey.keyG &&
+        event is KeyDownEvent) {
+      final group = BoardDocument.newId();
+      if (selection.length > 1) {
+        unawaited(
+          changeSelection(
+            (item, _) => keyboard.isShiftPressed
+                ? item.edited(ungroup: true)
+                : item.edited(group: group),
+          ),
+        );
+      }
+      return KeyEventResult.handled;
+    }
     if (keyboard.isControlPressed ||
         keyboard.isMetaPressed ||
         keyboard.isAltPressed) {
@@ -476,6 +491,9 @@ class _BoardState extends State<BoardView> {
   }
 
   bool moved = false;
+  BoardItem? resizing;
+  Rect? resizeBounds;
+  Rect? marquee;
   bool get placing => BoardKind.values.any((k) => k.name == tool);
 
   @override
@@ -1036,6 +1054,19 @@ class _BoardState extends State<BoardView> {
     pointer = e.pointer;
     start = (e.localPosition - sceneOrigin);
     moved = false;
+    final item = doc?.items[selected];
+    if (tool == 'select' &&
+        selection.length == 1 &&
+        item != null &&
+        item.kind != BoardKind.arrow &&
+        anchor == null &&
+        (itemBounds(item).bottomRight - start!).distance *
+                transform.value.getMaxScaleOnAxis() <=
+            10) {
+      resizing = item;
+      connectionStart = null;
+      return;
+    }
     connectionPointer = null;
     connectionStart =
         anchor ??
@@ -1057,7 +1088,16 @@ class _BoardState extends State<BoardView> {
     }
     moved = true;
     lastTapId = null;
-    if (connectionStart != null) {
+    if (resizing case final item?) {
+      setState(
+        () => resizeBounds = Rect.fromLTWH(
+          item.x,
+          item.y,
+          math.max(24, p.dx - item.x),
+          math.max(24, p.dy - item.y),
+        ),
+      );
+    } else if (connectionStart != null) {
       previewConnection(connectionStart!, p);
     } else if (tool == 'pencil') {
       ink.add(p);
@@ -1068,7 +1108,11 @@ class _BoardState extends State<BoardView> {
     } else if (tool == 'select') {
       final id = dragItem?.id ?? hit(start!);
       final origin = doc?.items[id];
-      if (origin == null || origin.kind == BoardKind.arrow) return;
+      if (origin == null) {
+        setState(() => marquee = Rect.fromPoints(start!, p));
+        return;
+      }
+      if (origin.kind == BoardKind.arrow) return;
       if (dragItem == null) {
         setState(() {
           if (!selection.contains(id)) select(id);
@@ -1080,6 +1124,13 @@ class _BoardState extends State<BoardView> {
   }
 
   void cancel() {
+    if (resizing != null || marquee != null) {
+      setState(() {
+        resizing = null;
+        resizeBounds = null;
+        marquee = null;
+      });
+    }
     pointer = null;
     connectionStart = null;
     connectionPointer = null;
@@ -1099,7 +1150,43 @@ class _BoardState extends State<BoardView> {
     if (tool == 'pencil' && points.last != p) ink.add(p);
     final strokeBounds = ink.bounds;
     final dragged = dragItem;
+    final resized = resizing;
+    final bounds = resizeBounds;
+    final area = marquee;
     cancel();
+    if (resized != null) {
+      if (bounds != null && doc?.items[resized.id] == resized) {
+        await commit(
+          BoardEdit.replace(
+            doc!,
+            resized.edited(width: bounds.width, height: bounds.height),
+          ),
+        );
+      }
+      return;
+    }
+    if (area != null) {
+      setState(() {
+        if (!HardwareKeyboard.instance.isShiftPressed) selection.clear();
+        for (final item in doc!.items.values) {
+          if (item.kind != BoardKind.arrow &&
+              area.contains(itemBounds(item).topLeft) &&
+              area.contains(itemBounds(item).bottomRight)) {
+            selection.add(item.id);
+            if (item.group != null) {
+              selection.addAll(
+                doc!.items.values
+                    .where((other) => other.group == item.group)
+                    .map((other) => other.id),
+              );
+            }
+          }
+        }
+        selected = selection.lastOrNull;
+        label.text = doc!.items[selected]?.label ?? '';
+      });
+      return;
+    }
     if (from != null) {
       if (!moved && anchor == null) {
         setState(() {
@@ -1555,6 +1642,53 @@ class _BoardState extends State<BoardView> {
                                 child: Stack(
                                   children: [
                                     ...visibleLayers(viewportBounds),
+                                    if ((resizeBounds ?? marquee)
+                                        case final bounds?)
+                                      Positioned.fromRect(
+                                        rect: bounds.shift(sceneOrigin),
+                                        child: IgnorePointer(
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              border: Border.all(
+                                                color: colors.accent,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    if (current != null &&
+                                        selection.length == 1 &&
+                                        current.kind != BoardKind.arrow &&
+                                        tool == 'select' &&
+                                        !navigating &&
+                                        editing == null &&
+                                        anchor == null)
+                                      Positioned(
+                                        left:
+                                            sceneOrigin.dx +
+                                            (resizeBounds ??
+                                                    itemBounds(current))
+                                                .right -
+                                            5,
+                                        top:
+                                            sceneOrigin.dy +
+                                            (resizeBounds ??
+                                                    itemBounds(current))
+                                                .bottom -
+                                            5,
+                                        child: IgnorePointer(
+                                          child: Container(
+                                            width: 10,
+                                            height: 10,
+                                            decoration: BoxDecoration(
+                                              color: colors.panel,
+                                              border: Border.all(
+                                                color: colors.accent,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     if (handleItem != null &&
                                         connectable(handleItem) &&
                                         editing == null &&

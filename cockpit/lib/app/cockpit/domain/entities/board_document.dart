@@ -108,6 +108,8 @@ class BoardItem {
   }
 
   BoardItem edited({
+    double? width,
+    double? height,
     double? x,
     double? y,
     String? label,
@@ -135,11 +137,21 @@ class BoardItem {
       strokeWidth: clearStrokeWidth ? null : strokeWidth ?? this.strokeWidth,
       z: z ?? this.z,
       group: ungroup ? null : group ?? this.group,
-      width: width,
-      height: height,
+      width: width ?? this.width,
+      height: height ?? this.height,
       from: from,
       to: to,
-      points: points,
+      points: [
+        for (final point in points)
+          (
+            x:
+                point.x *
+                (width == null || this.width == 0 ? 1 : width / this.width),
+            y:
+                point.y *
+                (height == null || this.height == 0 ? 1 : height / this.height),
+          ),
+      ],
     );
     if (this.thumbnail != null && copy.thumbnail == this.thumbnail) {
       _decodedThumbnails[copy] = _decodedThumbnails[this];
