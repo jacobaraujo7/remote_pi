@@ -14,6 +14,115 @@ import 'package:flutter/material.dart' as m;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 void main() {
+  testWidgets('resize and marquee grouping persist and undo', (tester) async {
+    const a = BoardItem('a', BoardKind.process, 30, 40);
+    const b = BoardItem('b', BoardKind.process, 260, 40);
+    final session = FileViewerSession(
+      id: 'resize',
+      projectId: 'test',
+      path: 'resize.canvas',
+      view: FileViewText(BoardDocument([a, b]).encode()),
+    );
+    addTearDown(session.dispose);
+    await tester.pumpWidget(
+      TranslationProvider(
+        child: ShadcnApp(
+          theme: buildTheme(brightness: Brightness.dark),
+          home: Scaffold(
+            child: BoardView(
+              session: session,
+              onSave: (source) async {
+                session.adoptDisk(FileViewText(source));
+                return true;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final origin = tester.getTopLeft(find.byType(m.InteractiveViewer));
+    await tester.tapAt(origin + const Offset(60, 65));
+    await tester.pump();
+    await tester.dragFrom(
+      // Grab inside the hit area: the object must grow by the drag delta,
+      // without jumping to the pointer's initial offset from the corner.
+      origin + Offset(a.x + a.width - 4, a.y + a.height - 4),
+      const Offset(40, 30),
+    );
+    await tester.pumpAndSettle();
+    BoardDocument document() =>
+        BoardDocument.parse((session.view as FileViewText).text);
+    expect(document().items['a']!.width, a.width + 40);
+    expect(document().items['a']!.height, a.height + 30);
+    final beforeCancel = (session.view as FileViewText).text;
+    final cancelResize = await tester.startGesture(
+      origin + Offset(a.x + a.width + 40, a.y + a.height + 30),
+    );
+    await cancelResize.moveBy(const Offset(30, 30));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await cancelResize.up();
+    await tester.pumpAndSettle();
+    expect((session.view as FileViewText).text, beforeCancel);
+    final independentResize = await tester.startGesture(
+      origin + Offset(a.x + a.width + 40, a.y + a.height + 30),
+    );
+    await independentResize.moveBy(const Offset(20, 20));
+    final latest = document();
+    session.adoptDisk(
+      FileViewText(
+        BoardDocument([
+          latest.items['a']!,
+          b.edited(label: 'Independent change'),
+        ]).encode(),
+      ),
+    );
+    await tester.pump();
+    await independentResize.up();
+    await tester.pumpAndSettle();
+    expect(document().items['a']!.width, a.width + 60);
+    expect(document().items['b']!.label, 'Independent change');
+
+    final conflictResize = await tester.startGesture(
+      origin + Offset(a.x + a.width + 60, a.y + a.height + 50),
+    );
+    await conflictResize.moveBy(const Offset(30, 30));
+    final external = BoardDocument([
+      document().items['a']!.edited(width: a.width + 70),
+      document().items['b']!,
+    ]).encode();
+    session.adoptDisk(FileViewText(external));
+    await tester.pump();
+    await conflictResize.up();
+    await tester.pumpAndSettle();
+    expect((session.view as FileViewText).text, external);
+
+    await tester.dragFrom(
+      origin + const Offset(15, 20),
+      const Offset(430, 180),
+    );
+    await tester.pump();
+    expect(find.byTooltip('Group'), findsOneWidget);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyG);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(document().items['a']!.group, isNotNull);
+    expect(document().items['a']!.group, document().items['b']!.group);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyG);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(document().items['a']!.group, isNull);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(document().items['a']!.group, isNotNull);
+  });
+
   testWidgets('an open connector follows the current shapes at the pointer', (
     tester,
   ) async {

@@ -10,6 +10,46 @@ import 'package:cockpit/app/cockpit/domain/services/board_editor.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'resizing scales freehand geometry and preserves connector identity',
+    () {
+      const stroke = BoardItem(
+        'ink',
+        BoardKind.stroke,
+        10,
+        20,
+        width: 100,
+        height: 50,
+        points: [(x: 25, y: 10)],
+      );
+      final resized = stroke.edited(width: 200, height: 100);
+      expect(resized.points.single, (x: 50.0, y: 20.0));
+      expect(identical(stroke.points, stroke.edited(x: 30).points), isTrue);
+      const flat = BoardItem(
+        'flat',
+        BoardKind.stroke,
+        0,
+        0,
+        width: 0,
+        height: 0,
+        points: [(x: 0, y: 0)],
+      );
+      expect(flat.edited(width: 24, height: 24).points.single, (
+        x: 0.0,
+        y: 0.0,
+      ));
+      const a = BoardItem('a', BoardKind.process, 0, 0);
+      const b = BoardItem('b', BoardKind.process, 300, 0);
+      const edge = BoardItem('edge', BoardKind.arrow, 0, 0, from: 'a', to: 'b');
+      final document = BoardDocument([a, b, edge]);
+      final edit = BoardEdit.replace(document, a.edited(width: 200));
+      final after = BoardDocument.parse(edit.apply(document).encode());
+      expect(after.items['edge']!.from, 'a');
+      expect(after.items['edge']!.to, 'b');
+      expect(edit.inverse.apply(after).items['a']!.width, a.width);
+    },
+  );
+
   const start = BoardItem('a', BoardKind.process, 12, 5, label: 'Start');
   const end = BoardItem('b', BoardKind.decision, 200, 10, label: 'Approve?');
   const edge = BoardItem(
