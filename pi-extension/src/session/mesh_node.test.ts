@@ -262,6 +262,39 @@ describe("MeshNode retained topology", () => {
     expect(attached.activate).toHaveBeenCalledTimes(1);
   });
 
+  test("a promoted leader attaches without a peer reconnect event", async () => {
+    vi.useFakeTimers();
+    const retained = topology();
+    const attached = bridge(retained);
+    attachSpy.mockResolvedValue(attached as never);
+    const { node, peer } = testNode("follower");
+
+    node.setTopology(retained);
+    await node.attachBridge({
+      relay: injectedRelay() as never,
+      relayUrl: "https://relay.test",
+      keypair: KEYPAIR,
+    });
+    // Follower: nothing to attach yet, but a retry must be armed.
+    expect(attachSpy).not.toHaveBeenCalled();
+
+    // Promote WITHOUT firing the peer's reconnect handler. That event is the
+    // only other trigger for an injected relay, and missing it used to leave
+    // cross-PC routing down until the process was restarted.
+    peer.role = "leader";
+    peer.broker = { id: "promoted-broker" };
+    await vi.advanceTimersByTimeAsync(2_500);
+
+    expect(attachSpy).toHaveBeenCalledTimes(1);
+    expect(attached.activate).toHaveBeenCalledTimes(1);
+
+    // …and the retry chain stops once the bridge is up.
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(attachSpy).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
+  });
+
   test("attaching a bridge later applies retained topology", async () => {
     const retained = topology("retained-self", "retained-sibling");
     attachSpy.mockResolvedValue(bridge(retained) as never);
