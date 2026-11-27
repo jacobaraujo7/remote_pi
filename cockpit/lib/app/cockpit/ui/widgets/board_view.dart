@@ -1078,8 +1078,8 @@ class _BoardState extends State<BoardView> {
         () => resizeBounds = Rect.fromLTWH(
           item.x,
           item.y,
-          math.max(24, p.dx - item.x),
-          math.max(24, p.dy - item.y),
+          math.max(24, item.width + delta.dx),
+          math.max(24, item.height + delta.dy),
         ),
       );
     } else if (connectionStart != null) {
@@ -1140,7 +1140,8 @@ class _BoardState extends State<BoardView> {
     final area = marquee;
     cancel();
     if (resized != null) {
-      if (bounds != null && doc?.items[resized.id] == resized) {
+      final current = doc?.items[resized.id];
+      if (bounds != null && current != null && current.sameContent(resized)) {
         await commit(
           BoardEdit.replace(
             doc!,
@@ -1415,6 +1416,7 @@ class _BoardState extends State<BoardView> {
         ? null
         : lastEditorBounds;
     final handleItem = doc?.items[hovered] ?? current;
+    final resizeHandleSize = 10 / transform.value.getMaxScaleOnAxis();
     final targetColor = tool == 'select' && current != null
         ? current.color
         : drawingColor;
@@ -1670,17 +1672,17 @@ class _BoardState extends State<BoardView> {
                                             (resizeBounds ??
                                                     itemBounds(current))
                                                 .right -
-                                            5,
+                                            resizeHandleSize / 2,
                                         top:
                                             sceneOrigin.dy +
                                             (resizeBounds ??
                                                     itemBounds(current))
                                                 .bottom -
-                                            5,
+                                            resizeHandleSize / 2,
                                         child: IgnorePointer(
                                           child: Container(
-                                            width: 10,
-                                            height: 10,
+                                            width: resizeHandleSize,
+                                            height: resizeHandleSize,
                                             decoration: BoxDecoration(
                                               color: colors.panel,
                                               border: Border.all(

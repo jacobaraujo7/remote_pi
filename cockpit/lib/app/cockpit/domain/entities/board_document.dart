@@ -141,17 +141,23 @@ class BoardItem {
       height: height ?? this.height,
       from: from,
       to: to,
-      points: [
-        for (final point in points)
-          (
-            x:
-                point.x *
-                (width == null || this.width == 0 ? 1 : width / this.width),
-            y:
-                point.y *
-                (height == null || this.height == 0 ? 1 : height / this.height),
-          ),
-      ],
+      points: width == null && height == null
+          ? points
+          : [
+              for (final point in points)
+                (
+                  x:
+                      point.x *
+                      (width == null || this.width == 0
+                          ? 1
+                          : width / this.width),
+                  y:
+                      point.y *
+                      (height == null || this.height == 0
+                          ? 1
+                          : height / this.height),
+                ),
+            ],
     );
     if (this.thumbnail != null && copy.thumbnail == this.thumbnail) {
       _decodedThumbnails[copy] = _decodedThumbnails[this];
