@@ -58,6 +58,7 @@ void main() {
       const Offset(430, 180),
     );
     await tester.pump();
+    expect(find.byTooltip('Group'), findsOneWidget);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyG);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);

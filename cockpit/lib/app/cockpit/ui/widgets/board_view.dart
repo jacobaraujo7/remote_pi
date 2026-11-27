@@ -409,7 +409,7 @@ class _BoardState extends State<BoardView> {
   }
 
   KeyEventResult canvasKey(FocusNode node, KeyEvent event) {
-    if (editing != null || !node.hasPrimaryFocus) return KeyEventResult.ignored;
+    if (editing != null || !node.hasFocus) return KeyEventResult.ignored;
     if (event.logicalKey == LogicalKeyboardKey.space) {
       final down = event is! KeyUpEvent;
       if (spacePan != down) {
@@ -432,21 +432,6 @@ class _BoardState extends State<BoardView> {
       return KeyEventResult.ignored;
     }
     final keyboard = HardwareKeyboard.instance;
-    if ((keyboard.isControlPressed || keyboard.isMetaPressed) &&
-        event.logicalKey == LogicalKeyboardKey.keyG &&
-        event is KeyDownEvent) {
-      final group = BoardDocument.newId();
-      if (selection.length > 1) {
-        unawaited(
-          changeSelection(
-            (item, _) => keyboard.isShiftPressed
-                ? item.edited(ungroup: true)
-                : item.edited(group: group),
-          ),
-        );
-      }
-      return KeyEventResult.handled;
-    }
     if (keyboard.isControlPressed ||
         keyboard.isMetaPressed ||
         keyboard.isAltPressed) {
@@ -1252,6 +1237,16 @@ class _BoardState extends State<BoardView> {
     }
   }
 
+  Future<void> groupSelection({bool ungroup = false}) async {
+    if (selection.length < 2) return;
+    canvasFocus.requestFocus();
+    final group = BoardDocument.newId();
+    await changeSelection(
+      (item, _) =>
+          ungroup ? item.edited(ungroup: true) : item.edited(group: group),
+    );
+  }
+
   Future<void> changeSelection(
     BoardItem Function(BoardItem, int) change,
   ) async {
@@ -1289,13 +1284,11 @@ class _BoardState extends State<BoardView> {
     };
     final current = doc?.items[selected];
     final objects = doc?.paintOrder ?? const <BoardItem>[];
-    final selectedShapes = advanced
-        ? selection
-              .map((id) => doc?.items[id])
-              .whereType<BoardItem>()
-              .where((item) => item.kind != BoardKind.arrow)
-              .toList()
-        : const <BoardItem>[];
+    final selectedShapes = selection
+        .map((id) => doc?.items[id])
+        .whereType<BoardItem>()
+        .where((item) => item.kind != BoardKind.arrow)
+        .toList();
     final moving = dragItem == null
         ? <BoardItem>[]
         : objects
@@ -1458,15 +1451,12 @@ class _BoardState extends State<BoardView> {
         IconButton(
           tooltip: tr.group,
           icon: const Icon(Icons.group_work_outlined),
-          onPressed: () {
-            final g = BoardDocument.newId();
-            changeSelection((i, _) => i.edited(group: g));
-          },
+          onPressed: () => groupSelection(),
         ),
         IconButton(
           tooltip: tr.ungroup,
           icon: const Icon(Icons.grid_off),
-          onPressed: () => changeSelection((i, _) => i.edited(ungroup: true)),
+          onPressed: () => groupSelection(ungroup: true),
         ),
         IconButton(
           tooltip: tr.align,
@@ -1559,6 +1549,17 @@ class _BoardState extends State<BoardView> {
                       bindings: editing != null
                           ? {}
                           : {
+                              const SingleActivator(
+                                LogicalKeyboardKey.keyG,
+                                control: true,
+                              ): () =>
+                                  groupSelection(),
+                              const SingleActivator(
+                                LogicalKeyboardKey.keyG,
+                                control: true,
+                                shift: true,
+                              ): () =>
+                                  groupSelection(ungroup: true),
                               const SingleActivator(
                                 LogicalKeyboardKey.f10,
                                 shift: true,
