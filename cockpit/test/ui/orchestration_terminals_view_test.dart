@@ -10,12 +10,18 @@ import 'package:cockpit/app/cockpit/ui/widgets/terminal_session_view.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart';
+import 'package:cockpit/app/cockpit/domain/entities/orchestration_presentation.dart';
 import 'package:cockpit/app/cockpit/domain/entities/workspace_graph.dart';
 import 'package:cockpit/app/cockpit/ui/services/orchestration_controller.dart';
 import 'package:cockpit/app/cockpit/ui/session/orchestration_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/orchestration_terminals_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/orchestration_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/workspace_box_inspector.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/process_metrics_provider.dart';
+import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
+import 'package:cockpit/app/core/ui/overlay/app_popover_handler.dart';
 import 'package:cockpit/app/core/domain/contracts/settings_store.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
@@ -82,6 +88,12 @@ class _Fixture {
       path: '/worktree/$id.orchestration',
       controller: controller,
       onOpenFile: openFile,
+      onStartCli: (boxId) async {
+        startedBoxes.add(
+          app.context.graphBoxes.singleWhere((box) => box.id == boxId),
+        );
+        return Success(boxId);
+      },
     );
     disk = OrchestrationDocument(
       boxes: [
@@ -100,6 +112,7 @@ class _Fixture {
     ).encode();
   }
   final gateways = <String, AttachmentTerminalGateway>{};
+  final startedBoxes = <GraphBox>[];
   String disk = '';
   late final OrchestrationSession app;
 }
@@ -114,6 +127,9 @@ Widget _keyboardHost(Widget child) => ModularApp(
   child: TranslationProvider(
     child: ShadcnApp(
       theme: buildTheme(brightness: Brightness.dark),
+      popoverHandler: const AppPopoverOverlayHandler(),
+      menuHandler: const AppPopoverOverlayHandler(),
+      tooltipHandler: const AppPopoverOverlayHandler(),
       builder: (context, child) {
         final tokens = buildTokens(
           brightness: Brightness.dark,
@@ -132,7 +148,142 @@ Widget _keyboardHost(Widget child) => ModularApp(
   ),
 );
 
+class _UnusedMetrics implements ProcessMetricsProvider {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
+  testWidgets('ordinary shell does not show Start CLI', (tester) async {
+    final fixture = _Fixture('ordinary-shell', TerminalEngine.xterm);
+    addTearDown(fixture.app.dispose);
+    await fixture.app.controller.load();
+    final session = fixture.app.terminals.session('ordinary-shell-one')!;
+    expect(session.isPlainShell, isTrue);
+    await tester.pumpWidget(
+      _keyboardHost(
+        TerminalSessionView(
+          session: session,
+          active: true,
+          focused: true,
+          focusRevision: 0,
+          onFocus: () {},
+          onOpenFile: (_, {line}) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(t.workspaceView.tool), findsNothing);
+    expect(find.text(t.workspaceView.startCli), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    unawaited(fixture.app.dispose());
+  });
+
+  testWidgets('plain shell launches the selected CLI with default options', (
+    tester,
+  ) async {
+    final fixture = _Fixture('shell-cli', TerminalEngine.xterm);
+    addTearDown(fixture.app.dispose);
+    await fixture.app.controller.load();
+    final id = '${fixture.app.id}-one';
+    fixture.app.context.focusTerminalTab(id);
+    await tester.pumpWidget(
+      _keyboardHost(
+        OrchestrationTerminalsView(
+          session: fixture.app,
+          active: true,
+          focused: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final start = find.ancestor(
+      of: find.text(t.workspaceView.startCli),
+      matching: find.byType(OutlineButton),
+    );
+    expect(tester.widget<OutlineButton>(start).onPressed, isNull);
+    await tester.tap(find.text(t.workspaceView.tool));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Claude Code'));
+    await tester.pumpAndSettle();
+    expect(fixture.gateways[id]!.text, isEmpty);
+    await tester.tap(start);
+    await tester.pump();
+    expect(fixture.gateways[id]!.text, 'claude\r');
+    expect(tester.widget<OutlineButton>(start).onPressed, isNull);
+    expect(fixture.gateways['${fixture.app.id}-two']!.text, isEmpty);
+    expect(fixture.app.context.graphBoxForTab(id)!.harness, isEmpty);
+    fixture.app.terminals
+        .session(id)!
+        .applyClaudeStatus(status: TerminalStatus.working, isTurnStart: true);
+    await tester.pump();
+    expect(start, findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    unawaited(fixture.app.dispose());
+  });
+
+  for (final mode in OrchestrationViewMode.values) {
+    testWidgets('new terminal exposes Start CLI in ${mode.name}', (
+      tester,
+    ) async {
+      final fixture = _Fixture('start-cli', TerminalEngine.xterm);
+      addTearDown(fixture.app.dispose);
+      await fixture.app.controller.load();
+      fixture.app.context.setWorkspaceView(mode);
+      await tester.pumpWidget(
+        _keyboardHost(
+          OrchestrationView(
+            session: fixture.app,
+            active: true,
+            processMetrics: _UnusedMetrics(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find
+            .byWidgetPredicate(
+              (widget) =>
+                  widget is AppTooltip &&
+                  widget.message == t.workspaceView.newTerminal,
+            )
+            .hitTestable(),
+      );
+      await tester.pumpAndSettle();
+
+      final inspector = find.byType(WorkspaceBoxInspector);
+      expect(inspector, findsOneWidget);
+      final form = tester.widget<WorkspaceBoxInspector>(inspector);
+      expect(form.box.title, 'Terminal 3');
+      expect(fixture.startedBoxes, isEmpty);
+      expect(fixture.app.terminals.sessions, hasLength(3));
+
+      final start = find.descendant(
+        of: inspector,
+        matching: find.ancestor(
+          of: find.text(t.workspaceView.startCli),
+          matching: find.byType(OutlineButton),
+        ),
+      );
+      expect(tester.widget<OutlineButton>(start).onPressed, isNull);
+      final tool = find.descendant(of: inspector, matching: find.text('codex'));
+      await tester.ensureVisible(tool);
+      await tester.tap(tool);
+      await tester.pumpAndSettle();
+      await tester.tap(start);
+      await tester.pumpAndSettle();
+
+      expect(fixture.startedBoxes, hasLength(1));
+      expect(fixture.startedBoxes.single.id, form.box.id);
+      expect(fixture.startedBoxes.single.harness, 'codex');
+      expect(fixture.app.terminals.sessions, hasLength(3));
+      expect(inspector, findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      unawaited(fixture.app.dispose());
+    });
+  }
+
   for (final engine in TerminalEngine.values) {
     testWidgets(
       'owned file presentation preserves $engine terminal identity and keyboard',

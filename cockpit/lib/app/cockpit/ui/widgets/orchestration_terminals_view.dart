@@ -46,6 +46,7 @@ class OrchestrationTerminalsView extends StatelessWidget {
                   key: ValueKey((session.id, tabId)),
                   session: mux.session(tabId)!,
                   active: active && tabId == shownId,
+                  showCliLauncher: true,
                   focused:
                       tabId == shownId && focused && mux.keyboardTabId == tabId,
                   focusRevision: mux.focusRevision,

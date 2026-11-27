@@ -1,5 +1,6 @@
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
+
 import '../../domain/entities/workspace_graph.dart';
 import '../../ui/viewmodels/workspace_graph_context.dart';
 import '../../../core/domain/result.dart';
@@ -8,9 +9,7 @@ import '../../../core/ui/widgets/app_menu.dart';
 import '../../../../i18n/strings.g.dart';
 import 'workspace_box_list.dart';
 
-/// Portable configuration of one definition (what the `.orc` file stores).
-/// Session actions (start, compact, handoff) live in the terminal menu, so
-/// this body fits a centered dialog instead of a side drawer.
+/// Edits one portable definition and can explicitly start its configured CLI.
 class WorkspaceBoxInspector extends StatefulWidget {
   const WorkspaceBoxInspector({
     super.key,
@@ -61,6 +60,7 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
   bool _askingRole = false;
   String? _suggestion;
   bool _dirty = false;
+  bool _saving = false;
   String? _message;
   bool _error = false;
   @override
@@ -118,25 +118,46 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
     });
   }
 
-  Future<void> _save() async {
-    final result = widget.onSave != null
-        ? await widget.onSave!(
-            _name.text,
-            _role.text,
-            _tool,
-            _model.text,
-            _directory.text,
-          )
-        : await widget.vm.configureGraphBox(
-            boxId: widget.box.id,
-            title: _name.text,
-            role: _role.text,
-            harness: _tool,
-            model: _model.text,
-          );
-    if (!mounted) return;
-    if (result is Success) _dirty = false;
-    _feedback(result);
+  Future<void> _save({bool startCli = false}) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      if (!startCli || _dirty) {
+        final result = widget.onSave != null
+            ? await widget.onSave!(
+                _name.text,
+                _role.text,
+                _tool,
+                _model.text,
+                _directory.text,
+              )
+            : await widget.vm.configureGraphBox(
+                boxId: widget.box.id,
+                title: _name.text,
+                role: _role.text,
+                harness: _tool,
+                model: _model.text,
+              );
+        if (!mounted) return;
+        if (result is Success) _dirty = false;
+        _feedback(result);
+        if (result is Failure) return;
+      }
+      if (startCli) {
+        final result = await widget.vm.relaunchGraphBox(
+          widget.box.id,
+          workspaceId: widget.projectId,
+        );
+        if (!mounted) return;
+        if (result is Failure) {
+          _feedback(result);
+        } else {
+          widget.onClose();
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _addLink(BuildContext anchor) async {
@@ -159,6 +180,14 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
   Widget build(BuildContext context) {
     final t = context.t.workspaceView;
     final box = widget.box;
+    final agentRunning =
+        widget.entry.tool.isNotEmpty &&
+        widget.entry.status != WorkspaceBoxStatus.closed;
+    final canStartCli =
+        !_saving &&
+        _tool.isNotEmpty &&
+        !agentRunning &&
+        !widget.vm.selectedRemoteDisconnected;
     final links = widget.vm.graphLinks
         .where((l) => l.from == box.id || l.to == box.id)
         .toList();
@@ -216,12 +245,14 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                     label(t.name),
                     TextField(
                       controller: _name,
+                      enabled: !_saving,
                       placeholder: Text(t.name),
                       onChanged: (_) => _dirty = true,
                     ),
                     label(t.optionalRole),
                     TextField(
                       controller: _role,
+                      enabled: !_saving,
                       maxLines: 5,
                       onChanged: (_) => _dirty = true,
                     ),
@@ -265,11 +296,13 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                           runSpacing: 6,
                           children: [
                             OutlineButton(
-                              onPressed: () => setState(() {
-                                _role.text = suggestion;
-                                _dirty = true;
-                                _suggestion = null;
-                              }),
+                              onPressed: _saving
+                                  ? null
+                                  : () => setState(() {
+                                      _role.text = suggestion;
+                                      _dirty = true;
+                                      _suggestion = null;
+                                    }),
                               child: Text(
                                 context.t.orchestration.useSuggestion,
                               ),
@@ -292,10 +325,12 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                       children: [
                         for (final tool in const ['', 'claude', 'codex', 'pi'])
                           OutlineButton(
-                            onPressed: () => setState(() {
-                              _tool = tool;
-                              _dirty = true;
-                            }),
+                            onPressed: _saving
+                                ? null
+                                : () => setState(() {
+                                    _tool = tool;
+                                    _dirty = true;
+                                  }),
                             child: Text(
                               tool.isEmpty ? t.noTool : tool,
                               style: TextStyle(
@@ -310,11 +345,13 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                     label(t.model),
                     TextField(
                       controller: _model,
+                      enabled: !_saving,
                       onChanged: (_) => _dirty = true,
                     ),
                     label(context.t.orchestration.directory),
                     TextField(
                       controller: _directory,
+                      enabled: !_saving,
                       onChanged: (_) => _dirty = true,
                     ),
                     label(t.connections),
@@ -368,17 +405,32 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                           ),
                         ),
                       ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        OutlineButton(
-                          onPressed: widget.onClose,
-                          child: Text(t.cancel),
-                        ),
-                        const SizedBox(width: 8),
-                        PrimaryButton(onPressed: _save, child: Text(t.save)),
-                      ],
+                  ],
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlineButton(
+                      onPressed: widget.onClose,
+                      child: Text(t.cancel),
+                    ),
+                    OutlineButton(
+                      onPressed: canStartCli
+                          ? () => _save(startCli: true)
+                          : null,
+                      child: Text(t.startCli),
+                    ),
+                    PrimaryButton(
+                      onPressed: _saving ? null : _save,
+                      child: Text(t.save),
                     ),
                   ],
                 ),
