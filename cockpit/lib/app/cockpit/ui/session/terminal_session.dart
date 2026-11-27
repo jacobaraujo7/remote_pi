@@ -116,7 +116,9 @@ class TerminalSession extends PaneItem {
           );
         }
         _kitty.feed(batch); // observa push/pop do kitty antes de renderizar.
+        final wasAlternate = terminal.isAlternateScreen;
         terminal.write(batch);
+        if (wasAlternate != terminal.isAlternateScreen) notifyListeners();
         _record(batch); // grava o scrollback pra replay no próximo boot.
         _trackCwd(batch); // rastreia o cwd vivo (OSC 7) pra restaurar nele.
         // Saída do PTY costuma coincidir com spawn/troca de processo em
@@ -471,6 +473,7 @@ class TerminalSession extends PaneItem {
     onQuiet: () => unawaited(_flush()),
   );
   Timer? _startupTimer;
+  Timer? _cliLaunchCooldown;
   final List<Timer> _harnessKickTimers = <Timer>[];
   DateTime? _lastHarnessKickAt;
 
@@ -505,6 +508,25 @@ class TerminalSession extends PaneItem {
   /// Insere [text] diretamente no PTY como se o usuário tivesse digitado/colado
   /// (ex.: caminho de arquivo arrastado até o terminal).
   void insertText(String text) => _gateway.write(utf8.encode(text));
+
+  bool get isPlainShell =>
+      !_disposed &&
+      !hasExited &&
+      activeHarness == null &&
+      status == TerminalStatus.idle &&
+      !terminal.isAlternateScreen;
+
+  bool get canStartCli => isPlainShell && _cliLaunchCooldown?.isActive != true;
+
+  /// Starts the selected CLI in this shell with the service's defaults.
+  bool startCli(HarnessSpec service) {
+    if (!canStartCli || _startupTimer?.isActive == true) return false;
+    _cliLaunchCooldown = Timer(const Duration(seconds: 1), notifyListeners);
+    insertText('${service.primaryEntryPoint}\r');
+    _kickHarnessMonitor(burst: true);
+    notifyListeners();
+    return true;
+  }
 
   /// Envia bytes CRUS ao PTY (sequências de controle: ESC, setas, F-keys,
   /// Ctrl+C...). Usado pela barra de teclas do mobile — plano 60, Wave F.
@@ -760,6 +782,7 @@ class TerminalSession extends PaneItem {
     _notifyDebounce?.cancel();
     _saveDebounce.dispose();
     _startupTimer?.cancel();
+    _cliLaunchCooldown?.cancel();
     _attachmentFeedbackTimer?.cancel();
     for (final t in _harnessKickTimers) {
       t.cancel();

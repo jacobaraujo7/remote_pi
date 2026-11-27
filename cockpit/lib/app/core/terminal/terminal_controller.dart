@@ -19,6 +19,7 @@ typedef TerminalResizeCallback = void Function(int columns, int rows);
 /// sessão, task store e CLI usam apenas esta superfície.
 sealed class CockpitTerminalController {
   TerminalEngine get engine;
+  bool get isAlternateScreen;
 
   ValueChanged<Uint8List>? onOutput;
   TerminalResizeCallback? onResize;
@@ -58,6 +59,9 @@ final class XtermTerminalController implements CockpitTerminalController {
 
   @override
   TerminalEngine get engine => TerminalEngine.xterm;
+
+  @override
+  bool get isAlternateScreen => terminal.buffer.isAltBuffer;
 
   @override
   ValueChanged<Uint8List>? onOutput;
@@ -215,6 +219,10 @@ final class GhosttyTerminalController implements CockpitTerminalController {
 
   @override
   TerminalEngine get engine => TerminalEngine.ghostty;
+
+  @override
+  bool get isAlternateScreen =>
+      controller.activeScreen == ghost.TerminalScreen.alternate;
 
   @override
   ValueChanged<Uint8List>? onOutput;

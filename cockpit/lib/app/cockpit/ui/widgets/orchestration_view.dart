@@ -1,14 +1,17 @@
 import 'dart:async';
+
 import '../../../core/domain/entities/harness.dart';
 import '../../../core/domain/result.dart';
 import '../../../core/ui/widgets/app_menu.dart';
 import '../../../core/ui/widgets/app_tooltip.dart';
 import '../../../core/ui/widgets/hover_tap.dart';
 import '../services/orchestration_live_sessions.dart';
+
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:path/path.dart' as path;
+
 import '../../domain/entities/workspace_graph.dart';
 import '../../domain/entities/orchestration_presentation.dart';
 import '../../domain/contracts/process_metrics_provider.dart';
@@ -198,6 +201,20 @@ class _OrchestrationViewState extends State<OrchestrationView> {
     );
   }
 
+  Future<void> _newTerminal() async {
+    final session = widget.session;
+    final vm = session.context;
+    final result = await vm.newTerminal();
+    if (!mounted || widget.session != session || session.disposed) return;
+    switch (result) {
+      case Success(:final value):
+        final box = vm.graphBoxForTab(value);
+        if (box != null) vm.selectWorkspaceBox(box.id, configure: true);
+      case Failure(:final error):
+        session.controller.reportError(error);
+    }
+  }
+
   /// The configuration is a centered dialog; `inspectorOpen` in the
   /// presentation is the request, consumed here exactly once.
   void _maybeOpenDialog(GraphBox selected) {
@@ -363,7 +380,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                         onNewTerminal:
                             controller.busy || vm.selectedRemoteDisconnected
                             ? null
-                            : () => vm.newTerminal(),
+                            : _newTerminal,
                       ),
                       WorkspaceGraphView(
                         active:
@@ -383,7 +400,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                         onNewTerminal:
                             controller.busy || vm.selectedRemoteDisconnected
                             ? null
-                            : () => vm.newTerminal(),
+                            : _newTerminal,
                         onExit: () =>
                             vm.setWorkspaceView(OrchestrationViewMode.boxes),
                         onOpenTab: (id) {
